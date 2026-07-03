@@ -1,0 +1,24 @@
+[project]
+name = "true-texture"
+version = "0.1.0"
+description = "Returns intelligence prototype: fabric/texture mismatch detection for fashion ecommerce"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    # Phase 1 (data + NLP core) — all local/free
+    "huggingface_hub>=0.23",
+    "sentence-transformers>=3.0",
+    "torch>=2.2",
+    "pandas>=2.0",
+    # Phase 3 (visual corroboration)
+    "transformers>=4.40",
+    "pillow>=10.0",
+    "requests>=2.31",
+    # Phase 4-5 (Bedrock concierge + dashboard)
+    "boto3>=1.34",
+    "streamlit>=1.35",
+    "rembg[cpu]>=2.0.76",
+    "numba>=0.60",
+]
+
+[tool.uv]
+package = false

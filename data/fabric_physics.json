@@ -1,0 +1,129 @@
+{
+  "version": "0.1",
+  "description": "Heuristic fabric ontology: expected tactile/thermal properties per fiber, adjectives that signal the claimed fiber is NOT what the customer received, and the cheap fiber it is most often substituted with. substitution_signature = the tactile tells a fiber leaves when masquerading as another (used by the diagnosis engine to corroborate substitution hypotheses).",
+  "materials": {
+    "cotton": {
+      "aliases": ["100% cotton", "pima", "supima", "organic cotton", "hosiery cotton", "combed cotton", "khadi"],
+      "expected_texture": ["soft", "matte", "breathable", "absorbent", "natural"],
+      "failing_adjectives": ["plastic", "shiny", "slick", "sweaty", "clingy", "staticky", "suffocating"],
+      "thermal": "high_breathability",
+      "weather_suitability": ["hot", "humid", "dry", "mild"],
+      "typical_gsm": [120, 220],
+      "common_complaints": ["shrinkage after wash", "wrinkling", "fading"],
+      "substitution_suspects": ["polyester"]
+    },
+    "linen": {
+      "aliases": ["flax", "100% linen", "french linen"],
+      "expected_texture": ["crisp", "coarse", "textured", "airy", "lightweight"],
+      "failing_adjectives": ["heavy", "plastic", "sweaty", "slick", "stretchy", "shiny", "suffocating"],
+      "thermal": "maximum_breathability",
+      "weather_suitability": ["very_hot", "tropical", "humid"],
+      "typical_gsm": [130, 200],
+      "common_complaints": ["wrinkles instantly", "scratchy when new", "sheer in light colors"],
+      "substitution_suspects": ["polyester", "viscose_rayon"]
+    },
+    "polyester": {
+      "aliases": ["poly", "microfiber", "polyblend", "poly blend"],
+      "expected_texture": ["smooth", "slick", "synthetic", "wrinkle-resistant", "durable"],
+      "substitution_signature": ["shiny", "slick", "plastic", "sweaty", "clingy", "staticky", "suffocating"],
+      "failing_adjectives": ["scratchy", "rough", "pilling", "flimsy", "paper-thin"],
+      "thermal": "low_breathability",
+      "weather_suitability": ["cold", "rainy", "windy", "mild"],
+      "typical_gsm": [100, 300],
+      "common_complaints": ["traps heat and sweat", "static cling", "holds odor", "pilling"],
+      "substitution_suspects": []
+    },
+    "wool": {
+      "aliases": ["merino", "lambswool", "100% wool", "virgin wool"],
+      "expected_texture": ["warm", "springy", "matte", "insulating", "slightly fuzzy"],
+      "failing_adjectives": ["plastic", "slick", "shiny", "flimsy", "cold", "squeaky"],
+      "thermal": "high_insulation_breathable",
+      "weather_suitability": ["cold", "cool", "dry"],
+      "typical_gsm": [180, 400],
+      "common_complaints": ["itchy for sensitive skin", "requires careful washing", "moth damage"],
+      "substitution_suspects": ["acrylic", "polyester"]
+    },
+    "cashmere": {
+      "aliases": ["100% cashmere", "pashmina"],
+      "expected_texture": ["buttery", "ultra-soft", "light", "warm", "delicate"],
+      "failing_adjectives": ["scratchy", "squeaky", "staticky", "stiff", "plastic", "shiny"],
+      "thermal": "very_high_insulation_lightweight",
+      "weather_suitability": ["cold", "cool"],
+      "typical_gsm": [150, 300],
+      "common_complaints": ["pilling under friction", "very delicate wash"],
+      "substitution_suspects": ["acrylic", "viscose_rayon"]
+    },
+    "silk": {
+      "aliases": ["100% silk", "mulberry silk", "charmeuse"],
+      "expected_texture": ["smooth", "cool-to-touch", "lustrous", "fluid", "lightweight"],
+      "failing_adjectives": ["plastic", "staticky", "stiff", "sweaty", "cheap", "crunchy"],
+      "thermal": "thermoregulating",
+      "weather_suitability": ["hot", "mild", "cool"],
+      "typical_gsm": [60, 140],
+      "common_complaints": ["water spots", "delicate wash", "snags easily"],
+      "substitution_suspects": ["polyester"]
+    },
+    "viscose_rayon": {
+      "aliases": ["viscose", "rayon", "modal", "lyocell", "tencel", "bamboo", "art silk", "artificial silk"],
+      "expected_texture": ["silky", "fluid", "drapey", "soft", "cool"],
+      "substitution_signature": ["clingy", "slick", "stretchy", "flimsy"],
+      "failing_adjectives": ["stiff", "scratchy", "clingy", "papery", "crunchy"],
+      "thermal": "moderate_breathability",
+      "weather_suitability": ["hot", "mild", "humid"],
+      "typical_gsm": [100, 180],
+      "common_complaints": ["weak when wet", "shrinks or warps in wash", "wrinkles"],
+      "substitution_suspects": ["polyester"]
+    },
+    "nylon": {
+      "aliases": ["polyamide"],
+      "expected_texture": ["smooth", "slick", "strong", "lightweight", "slightly stretchy"],
+      "failing_adjectives": ["scratchy", "crunchy", "flimsy", "papery"],
+      "thermal": "low_breathability",
+      "weather_suitability": ["cold", "rainy", "windy"],
+      "typical_gsm": [40, 200],
+      "common_complaints": ["traps heat", "static", "sheen too sporty for dressy items"],
+      "substitution_suspects": []
+    },
+    "spandex": {
+      "aliases": ["elastane", "lycra"],
+      "expected_texture": ["stretchy", "snug", "smooth", "form-fitting"],
+      "failing_adjectives": ["rigid", "no stretch", "baggy", "loose weave"],
+      "thermal": "low_breathability",
+      "weather_suitability": ["any_as_blend"],
+      "typical_gsm": [150, 300],
+      "common_complaints": ["loses elasticity over time", "compression too tight"],
+      "substitution_suspects": []
+    },
+    "georgette": {
+      "aliases": ["faux georgette", "pure georgette", "poly georgette"],
+      "expected_texture": ["lightweight", "flowy", "sheer", "slightly grainy", "crinkled"],
+      "failing_adjectives": ["stiff", "plastic", "heavy", "scratchy", "crunchy"],
+      "thermal": "moderate_breathability",
+      "weather_suitability": ["hot", "mild"],
+      "typical_gsm": [60, 120],
+      "common_complaints": ["very sheer, needs lining", "snags easily", "static"],
+      "substitution_suspects": ["polyester"]
+    },
+    "chiffon": {
+      "aliases": ["faux chiffon", "pure chiffon"],
+      "expected_texture": ["sheer", "floaty", "lightweight", "soft drape"],
+      "failing_adjectives": ["stiff", "heavy", "plastic", "scratchy", "crunchy"],
+      "thermal": "high_breathability",
+      "weather_suitability": ["hot", "mild"],
+      "typical_gsm": [30, 80],
+      "common_complaints": ["extremely sheer", "frays and snags", "slippery"],
+      "substitution_suspects": ["polyester"]
+    },
+    "acrylic": {
+      "aliases": ["acrylic knit"],
+      "expected_texture": ["wool-like", "soft", "lightweight", "warm"],
+      "substitution_signature": ["squeaky", "staticky", "scratchy", "plastic", "shiny"],
+      "failing_adjectives": ["squeaky", "plastic", "staticky", "scratchy", "sweaty"],
+      "thermal": "moderate_insulation_low_breathability",
+      "weather_suitability": ["cold", "cool"],
+      "typical_gsm": [150, 350],
+      "common_complaints": ["pilling badly", "static", "holds odor", "melts under high heat"],
+      "substitution_suspects": []
+    }
+  }
+}
