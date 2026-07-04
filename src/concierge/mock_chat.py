@@ -41,11 +41,23 @@ class MockBedrockChat:
             tool = {"toolUseId": "mock-3", "name": "submit_diagnosis", "input": {
                 "root_cause_category": "TEXTURE_MISMATCH",
                 "material_issue_suspected": True,
+                "reported_feel": "shiny, plastic-like",
+                "weather_context": None,
+                "weather_suitability_mismatch": None,
                 "suspected_substitution": "polyester",
                 "customer_summary": quote or "Fabric felt synthetic, unlike the listed cotton.",
                 "seller_action": "SUPPLY_CHAIN_AUDIT",
-                "listing_fix_recommendation": "State the true fabric blend in the "
-                                              "title and description.",
+                "listing_fix_recommendation": "Listing claims cotton but customers "
+                                              "report a shiny synthetic feel. Verify "
+                                              "the fiber with the supplier, then "
+                                              "either declare the actual blend or "
+                                              "source genuine cotton; if the fiber "
+                                              "checks out, source premium-grade "
+                                              "cotton to fix the hand-feel.",
+                "customer_closing_message": "Thank you so much for the detailed "
+                                            "feedback — it's genuinely helpful and "
+                                            "we're forwarding it to our team to "
+                                            "improve this product.",
                 "confidence": "MEDIUM"}}
         return {
             "output": {"message": {"role": "assistant", "content": [{"toolUse": tool}]}},

@@ -18,6 +18,7 @@ dependencies = [
     "streamlit>=1.35",
     "rembg[cpu]>=2.0.76",
     "numba>=0.60",
+    "google-genai>=1.0",
 ]
 
 [tool.uv]

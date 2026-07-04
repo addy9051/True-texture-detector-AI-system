@@ -5,7 +5,7 @@
     "cotton": {
       "aliases": ["100% cotton", "pima", "supima", "organic cotton", "hosiery cotton", "combed cotton", "khadi"],
       "expected_texture": ["soft", "matte", "breathable", "absorbent", "natural"],
-      "failing_adjectives": ["plastic", "shiny", "slick", "sweaty", "clingy", "staticky", "suffocating"],
+      "failing_adjectives": ["plastic", "shiny", "slick", "sweaty", "clingy", "staticky", "suffocating", "rough", "scratchy", "coarse"],
       "thermal": "high_breathability",
       "weather_suitability": ["hot", "humid", "dry", "mild"],
       "typical_gsm": [120, 220],
@@ -124,6 +124,193 @@
       "typical_gsm": [150, 350],
       "common_complaints": ["pilling badly", "static", "holds odor", "melts under high heat"],
       "substitution_suspects": []
+    }
+  },
+  "weaves": {
+    "_note": "Weave/construction-level tactile + thermal expectations, orthogonal to fiber. A garment has a fiber (what it's made of -> substitution) AND often a weave (how it's made -> surface feel + how much air it traps). A satin reported as 'rough' is a feel mismatch regardless of fiber. CONSTRUCTION OFTEN DOMINATES WARMTH: raised/pile weaves (velvet, fleece, corduroy) trap air and are for cold weather even in a breathable fiber; open/sheer weaves (net, organza, mesh) ventilate and are for hot weather. `weather_suitability` here (web-grounded 2026-07) should be combined with, and usually overrides, the fiber's weather for warmth. `warmth` = warm/airy/neutral summary.",
+    "satin": {
+      "aliases": ["sateen", "charmeuse satin"],
+      "expected_texture": ["smooth", "glossy", "slippery", "cool", "lustrous", "fluid"],
+      "failing_adjectives": ["rough", "matte", "dull", "coarse", "scratchy", "stiff", "grippy"],
+      "structure": "opaque_drapey",
+      "warmth": "neutral",
+      "weather_suitability": ["mild", "cool", "warm"]
+    },
+    "crepe": {
+      "aliases": ["crepe de chine"],
+      "expected_texture": ["crinkled", "grainy", "textured", "matte", "springy", "dry"],
+      "failing_adjectives": ["smooth", "slick", "shiny", "plasticky", "stiff", "flat"],
+      "structure": "opaque_drapey",
+      "warmth": "neutral",
+      "weather_suitability": ["mild", "warm", "cool"]
+    },
+    "velvet": {
+      "aliases": ["velveteen"],
+      "expected_texture": ["soft", "plush", "pile", "dense", "smooth-nap", "warm"],
+      "failing_adjectives": ["thin", "flat", "scratchy", "stiff", "rough", "shiny", "plasticky"],
+      "structure": "pile",
+      "warmth": "warm",
+      "weather_suitability": ["cold", "cool"]
+    },
+    "velour": {
+      "aliases": [],
+      "expected_texture": ["soft", "plush", "stretchy", "pile", "cozy"],
+      "failing_adjectives": ["stiff", "scratchy", "thin", "rough"],
+      "structure": "pile",
+      "warmth": "warm",
+      "weather_suitability": ["cold", "cool"]
+    },
+    "net": {
+      "aliases": ["netted"],
+      "expected_texture": ["sheer", "open-weave", "stiff", "structured", "mesh-like"],
+      "failing_adjectives": ["heavy", "dense", "limp", "opaque"],
+      "structure": "sheer",
+      "warmth": "airy",
+      "weather_suitability": ["hot", "warm", "mild"]
+    },
+    "mesh": {
+      "aliases": ["powernet mesh"],
+      "expected_texture": ["breathable", "open-weave", "lightweight", "airy"],
+      "failing_adjectives": ["heavy", "dense", "hot", "suffocating", "stiff"],
+      "structure": "sheer",
+      "warmth": "airy",
+      "weather_suitability": ["hot", "humid", "warm", "mild"]
+    },
+    "jacquard": {
+      "aliases": ["brocade", "jacquard/brocade", "damask"],
+      "expected_texture": ["raised-pattern", "textured", "structured", "heavy", "ornate"],
+      "failing_adjectives": ["flat", "flimsy", "thin", "plain", "limp"],
+      "structure": "structured",
+      "warmth": "warm",
+      "weather_suitability": ["cool", "cold", "mild"]
+    },
+    "organza": {
+      "aliases": [],
+      "expected_texture": ["crisp", "sheer", "stiff", "lightweight", "wiry"],
+      "failing_adjectives": ["soft", "limp", "heavy", "drapey", "opaque"],
+      "structure": "sheer",
+      "warmth": "airy",
+      "weather_suitability": ["hot", "warm", "mild"]
+    },
+    "taffeta": {
+      "aliases": [],
+      "expected_texture": ["crisp", "smooth", "rustling", "structured", "glossy"],
+      "failing_adjectives": ["soft", "limp", "dull", "flimsy"],
+      "structure": "structured",
+      "warmth": "neutral",
+      "weather_suitability": ["mild", "cool"]
+    },
+    "chanderi": {
+      "aliases": [],
+      "expected_texture": ["lightweight", "sheer", "glossy", "slightly-stiff", "airy"],
+      "failing_adjectives": ["heavy", "opaque", "thick", "rough", "dull"],
+      "structure": "sheer",
+      "warmth": "airy",
+      "weather_suitability": ["hot", "warm", "humid", "mild"]
+    },
+    "lace": {
+      "aliases": ["lacy", "chantilly lace"],
+      "expected_texture": ["delicate", "openwork", "textured", "decorative"],
+      "failing_adjectives": ["stiff", "harsh", "plasticky", "heavy", "scratchy-hard"],
+      "structure": "sheer",
+      "warmth": "airy",
+      "weather_suitability": ["hot", "warm", "mild"]
+    },
+    "denim": {
+      "aliases": ["denim weave", "chambray denim"],
+      "expected_texture": ["sturdy", "structured", "firm", "dense", "slightly-stiff"],
+      "failing_adjectives": ["flimsy", "thin", "limp", "papery", "sheer"],
+      "structure": "structured",
+      "warmth": "neutral",
+      "weather_suitability": ["mild", "cool", "cold"]
+    },
+    "corduroy": {
+      "aliases": ["cord"],
+      "expected_texture": ["ribbed", "soft", "thick", "plush-wale", "warm"],
+      "failing_adjectives": ["flat", "thin", "stiff", "scratchy"],
+      "structure": "pile",
+      "warmth": "warm",
+      "weather_suitability": ["cold", "cool"]
+    },
+    "fleece": {
+      "aliases": ["polar fleece", "sherpa"],
+      "expected_texture": ["soft", "fuzzy", "warm", "plush", "lightweight"],
+      "failing_adjectives": ["rough", "scratchy", "thin", "stiff", "cold"],
+      "structure": "pile",
+      "warmth": "warm",
+      "weather_suitability": ["cold", "cool"]
+    },
+    "french terry": {
+      "aliases": ["terry", "loopback"],
+      "expected_texture": ["soft", "looped-back", "absorbent", "cozy", "mid-weight"],
+      "failing_adjectives": ["rough", "scratchy", "stiff", "thin"],
+      "structure": "knit",
+      "warmth": "warm",
+      "weather_suitability": ["cool", "mild", "cold"]
+    },
+    "flannel": {
+      "aliases": ["brushed flannel"],
+      "expected_texture": ["soft", "brushed", "fuzzy", "warm"],
+      "failing_adjectives": ["rough", "scratchy", "thin", "coarse", "stiff"],
+      "structure": "brushed",
+      "warmth": "warm",
+      "weather_suitability": ["cold", "cool"]
+    },
+    "seersucker": {
+      "aliases": [],
+      "expected_texture": ["puckered", "crinkled", "textured", "lightweight", "breathable"],
+      "failing_adjectives": ["smooth", "flat", "heavy", "stiff"],
+      "structure": "opaque_light",
+      "warmth": "airy",
+      "weather_suitability": ["hot", "humid", "warm", "mild"]
+    },
+    "tweed": {
+      "aliases": ["herringbone tweed"],
+      "expected_texture": ["textured", "thick", "sturdy", "warm", "nubby"],
+      "failing_adjectives": ["smooth", "thin", "flimsy", "slick", "limp"],
+      "structure": "structured",
+      "warmth": "warm",
+      "weather_suitability": ["cold", "cool"]
+    },
+    "jersey": {
+      "aliases": ["jersey knit", "single jersey"],
+      "expected_texture": ["soft", "stretchy", "drapey", "smooth"],
+      "failing_adjectives": ["stiff", "scratchy", "rigid", "rough", "papery"],
+      "structure": "knit",
+      "warmth": "neutral",
+      "weather_suitability": ["mild", "warm", "cool"]
+    },
+    "twill": {
+      "aliases": ["chino twill"],
+      "expected_texture": ["diagonal-textured", "sturdy", "smooth", "durable"],
+      "failing_adjectives": ["flimsy", "rough", "thin", "limp"],
+      "structure": "structured",
+      "warmth": "neutral",
+      "weather_suitability": ["mild", "cool", "cold"]
+    },
+    "waffle": {
+      "aliases": ["waffle knit", "thermal waffle"],
+      "expected_texture": ["textured", "dimpled", "breathable", "cozy", "stretchy"],
+      "failing_adjectives": ["flat", "smooth", "thin", "stiff"],
+      "structure": "knit",
+      "warmth": "warm",
+      "weather_suitability": ["cool", "mild", "cold"]
+    },
+    "faux fur": {
+      "aliases": ["fur", "sherpa fur"],
+      "expected_texture": ["soft", "plush", "fuzzy", "warm", "fluffy"],
+      "failing_adjectives": ["coarse", "stiff", "matted", "scratchy", "thin", "shedding"],
+      "structure": "pile",
+      "warmth": "warm",
+      "weather_suitability": ["cold"]
+    },
+    "faux leather": {
+      "aliases": ["leather", "pu leather", "leatherette", "vegan leather"],
+      "expected_texture": ["smooth", "supple", "firm", "sleek"],
+      "failing_adjectives": ["stiff", "cracked", "cheap-plasticky", "flimsy", "peeling", "sticky"],
+      "structure": "surface",
+      "warmth": "neutral",
+      "weather_suitability": ["cold", "cool", "mild", "windy"]
     }
   }
 }

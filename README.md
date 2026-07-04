@@ -13,9 +13,11 @@ public US Amazon reviews dataset — the best public data with review photos and
 material fields — with an India-validation phase planned (multilingual model,
 Kaggle Flipkart/Myntra review sets).
 
-**Status:** Phases 0–5 built and verified · **cloud spend: $0 of a $100 budget** ·
-live Bedrock path blocked by an AISPL account restriction (support case open);
-a mock transport keeps every stage demoable offline.
+**Status:** Phases 0–6 built and verified · **cloud spend: $0 of a $100 budget** ·
+live LLM path: Groq free tier (no card, no billing entity) while an AISPL
+account restriction blocks Bedrock (support case open — AWS infra kept as
+fallback, switch-back is one env var); a mock transport keeps every stage
+demoable fully offline.
 
 ```powershell
 uv run python scripts/demo.py     # guided 60-second tour of every result below
@@ -72,7 +74,15 @@ Amazon Reviews 2023 (public, 2.5M reviews scanned)
    calls, automatic JSON-protocol fallback for accounts that reject Converse
    toolConfig), fabric ontology + prior evidence in the system prompt (marked
    internal — never used to lead the customer), per-session cost meter with a
-   $0.25 hard stop. Verified end-to-end via the mock transport.
+   $0.25 hard stop. Grounded, two-audience output: the engine injects material
+   ground truth into every diagnosis, and a **2×2 response matrix** on feel ×
+   weather drives distinct customer messages and seller actions —
+   defect/right-weather → apology + supplier action; right-feel/wrong-weather →
+   weather education + intuitive adjustments (no seller fault); both → apology +
+   material/weather guidance + defect mitigation; neither → apology + ideal-use
+   guidance, with the seller escalated to a distributor consultation only once
+   such "no-fault" returns cross a threshold. All four quadrants verified live
+   on Groq (Llama/gpt-oss free tier).
 5. **Seller dashboard** — KPIs, priority-filtered shortlist, per-product evidence
    drill-down, visual-audit verdicts, concierge transcripts (mock rows badged).
    Smoke-tested headless (AppTest: zero exceptions).
@@ -107,24 +117,47 @@ uv run streamlit run app.py
 uv run python scripts/demo.py
 ```
 
-## AWS setup (Phase 4 live path)
+## LLM provider setup (Phase 4 live path)
 
-One-time, ~10 minutes — see the per-step details in earlier commits if needed.
+The concierge is provider-agnostic (`LLM_PROVIDER` = `groq` | `gemini` |
+`bedrock` | `mock`; default order: groq if `GROQ_API_KEY` set, then gemini if
+`GEMINI_API_KEY` set, else bedrock).
 
-1. **Models auto-enable on first invoke** (the Model-access console page is
-   retired). Default model: `mistral.mistral-large-2407-v1:0` in `us-west-2`
-   (temporary — Anthropic Claude is Marketplace-billed and NOT covered by
-   promotional credits; Amazon Nova Pro is the target once the account issue
-   clears: `$env:BEDROCK_MODEL_ID = "us.amazon.nova-pro-v1:0"`).
-2. **IAM user** with `bedrock:InvokeModel` + `bedrock:InvokeModelWithResponseStream`,
-   credentials via `aws configure` (or a Bedrock API key in
-   `AWS_BEARER_TOKEN_BEDROCK` — supported, Bedrock-only).
-3. **Budget alarm** in Billing → Budgets (a $50 alarm is set on this account).
-4. Verify: `uv run python scripts/check_bedrock.py` — it checks credentials,
-   pings the model, and probes native tool support.
+**Option A — Groq (current primary).** Free tier needs no credit card and no
+billing account — immune to both the AWS account-gating below and the Google
+Cloud billing issues encountered.
 
-> **Known account gotchas** (both hit during this project): AWS Free Tier *free
-> plan* and AISPL (India-billed) accounts can return
+1. Sign in at <https://console.groq.com> (Google/GitHub) → API Keys → create.
+2. `setx GROQ_API_KEY "<key>"` → open a new terminal.
+3. Verify: `uv run python scripts/check_llm.py` (pings the model + probes tool
+   support). Default model `openai/gpt-oss-120b` (best tool-calling reasoner on
+   the account's list; the client requests `reasoning_effort: low` so token
+   budgets go to answers, not hidden thinking). Free tier ≈ 1,000 req/day →
+   hundreds of sessions/day at $0. Alternates via `GROQ_MODEL_ID`:
+   `llama-3.3-70b-versatile`, `llama-3.1-8b-instant`.
+4. Live end-to-end check (scripted, non-interactive):
+   `uv run python scripts/test_live_concierge.py`
+
+**Option B — Google AI Studio Gemini.** Same no-card story
+(<https://aistudio.google.com/apikey>, `setx GEMINI_API_KEY`), parked due to a
+Google Cloud billing issue on this account.
+
+**Option C — AWS Bedrock (fallback infrastructure, kept intact).**
+
+1. Models auto-enable on first invoke (the Model-access console page is
+   retired). Current model: `mistral.mistral-large-2407-v1:0` in `us-west-2`;
+   target is Nova Pro (`us.amazon.nova-pro-v1:0`) once the account issue clears.
+2. IAM user with `bedrock:InvokeModel` (+ streaming), credentials via
+   `aws configure` (or a Bedrock API key in `AWS_BEARER_TOKEN_BEDROCK`).
+3. Budget alarm in Billing → Budgets (a $50 alarm is set on this account).
+4. Verify: `uv run python scripts/check_bedrock.py`.
+
+**Switch-back plan:** when `check_bedrock.py` passes without
+`ValidationException: Operation not allowed`, run
+`setx LLM_PROVIDER "bedrock"` — no code changes.
+
+> **Known AWS account gotchas** (both hit during this project): AWS Free Tier
+> *free plan* and AISPL (India-billed) accounts can return
 > `ValidationException: Operation not allowed` on Bedrock invokes — an
 > account-level gate. Fix is plan upgrade / support case, never code.
 
@@ -138,13 +171,17 @@ prints its exact token cost and hard-stops at $0.25.
 ## Layout
 
 ```
-data/fabric_physics.json        fabric ontology (feel, red flags, substitution tells)
+data/fabric_physics.json        fabric ontology: fibers (feel, thermal, substitution) + weaves (surface feel)
+data/category_materials.json    top-~10 materials per apparel category (India taxonomy)
+src/physics/category_materials.py  category material prior + fiber normalization
 src/ingest/                     dataset sampling (McAuley Amazon Reviews 2023)
 src/nlp/semantic_filter.py      MiniLM aspect filter (calibrated threshold 0.50)
 src/physics/fabric_ontology.py  claimed material -> expectations -> mismatch hits
 src/diagnosis/                  negation gate + priority scoring + substitution logic
 src/visual/clip_audit.py        CLIP/color audit + the control-group experiment
-src/concierge/                  Bedrock client, interview engine, offline mock
+src/concierge/                  LLM clients, interview engine, offline mock
+src/concierge/skill.md          procedural memory: the interview policy / RESPONSE MATRIX
+src/concierge/insights_store.py episodic memory: sessions in SQLite (SQL recency)
 scripts/                        one runnable script per phase + demo.py
 app.py                          Streamlit seller dashboard
 PROJECT_PLAN.md                 market case, plan audit, phase log, budget

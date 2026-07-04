@@ -71,11 +71,10 @@ def main():
         })
         print(f"seeded session for [{diag['priority']}] {rows[-1]['title'][:70]}")
 
-    PROCESSED.mkdir(parents=True, exist_ok=True)
-    with (PROCESSED / "seller_insights.jsonl").open("a", encoding="utf-8") as f:
-        for row in rows:
-            f.write(json.dumps(row, ensure_ascii=False) + "\n")
-    print(f"Appended {len(rows)} mock sessions to seller_insights.jsonl")
+    from src.concierge.insights_store import save_session
+    for row in rows:
+        save_session(row)
+    print(f"Saved {len(rows)} mock sessions to insights.sqlite")
 
 
 if __name__ == "__main__":

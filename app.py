@@ -5,7 +5,7 @@
 Everything rendered here is computed from local pipeline outputs — no AWS:
     data/processed/diagnosis.jsonl         Phase 2 mismatch diagnoses
     data/processed/texture_sentences.jsonl Phase 1 evidence pool
-    data/processed/seller_insights.jsonl   Phase 4 concierge sessions (real or mock)
+    data/processed/insights.sqlite         Phase 4 concierge sessions (episodic memory)
     data/processed/visual_audit.jsonl      Phase 3 visual corroboration (optional)
 """
 
@@ -34,9 +34,13 @@ st.title("True-Texture — Returns Intelligence")
 st.caption("Fabric/texture mismatch detection for fashion marketplaces. "
            "Every flag below carries its evidence — no black-box scores.")
 
+from src.concierge.insights_store import load_sessions, migrate_jsonl
+
 diagnoses = load_jsonl("diagnosis.jsonl")
 sentences = load_jsonl("texture_sentences.jsonl")
-insights = load_jsonl("seller_insights.jsonl")
+# Episodic memory lives in SQLite now; import any legacy JSONL once.
+migrate_jsonl(PROCESSED / "seller_insights.jsonl")
+insights = load_sessions()
 visual = {v["parent_asin"]: v for v in load_jsonl("visual_audit.jsonl")}
 
 if not diagnoses:
@@ -127,6 +131,19 @@ with tab_concierge:
                 "AWS access is being resolved) or seed demo rows with "
                 "`uv run python scripts/seed_mock_insights.py`.")
     else:
+        from src.concierge.seller_escalation import escalations, DEFAULT_THRESHOLD
+        esc = escalations(insights)
+        if esc:
+            st.subheader("🚨 Distributor-consultation escalations")
+            st.caption(f"Products returned ≥{DEFAULT_THRESHOLD}× despite no fabric "
+                       f"or weather fault — expectation/presentation gaps, not defects.")
+            for e in esc.values():
+                st.error(f"**{e['title'][:70]}** — {e['no_issue_returns']} "
+                         f"'no-fault' returns.  \n{e['recommendation']}")
+
+        cases = Counter(i["diagnosis"].get("case_class", "—") for i in insights)
+        st.caption("Case mix: " + " · ".join(f"{k}={v}" for k, v in cases.items()))
+
         causes = Counter(i["diagnosis"].get("root_cause_category", "OTHER")
                          for i in insights)
         actions = Counter(i["diagnosis"].get("seller_action", "NO_ACTION")
@@ -150,6 +167,35 @@ with tab_concierge:
                     f"{i['timestamp'][:16]} — {i['title'][:60]} — "
                     f"{dx.get('root_cause_category')} → {dx.get('seller_action')}"
                     f"{badge}"):
+                gt = dx.get("material_ground_truth") or []
+                if gt:
+                    claims = "; ".join(
+                        f"**{g['material']}** (genuine feel: {', '.join(g['genuine_feel'])}; "
+                        f"ideal weather: {', '.join(g['ideal_weather'])})" for g in gt)
+                    reported = dx.get("reported_feel") or "—"
+                    weather = dx.get("weather_context")
+                    st.markdown(f"⚖️ **Claim vs experience:** listing claims {claims} "
+                                f"— customer reports **{reported}**"
+                                + (f", worn in: *{weather}*" if weather else "") + ".")
+                wgt = dx.get("weave_ground_truth") or []
+                if wgt:
+                    weaves_txt = "; ".join(
+                        f"**{w['weave']}** (should feel: {', '.join(w['should_feel'][:4])})"
+                        for w in wgt)
+                    st.markdown(f"🧵 **Weave:** {weaves_txt}")
+                if dx.get("weather_suitability_mismatch"):
+                    st.info("🌦️ **Weather-suitability mismatch** — item worn outside "
+                            "its ideal conditions; customer was gently informed.")
+                rec = dx.get("listing_fix_recommendation")
+                if rec:
+                    sub = dx.get("suspected_substitution")
+                    tag = (f"suspected substitution → **{sub}**" if sub
+                           else "genuine-fiber quality issue (no substitution)")
+                    st.success(f"🛠️ **Action — {dx.get('seller_action')}** "
+                               f"({tag}):  \n{rec}")
+                msg = dx.get("customer_closing_message")
+                if msg:
+                    st.markdown(f"💬 **Message shown to customer:** _{msg}_")
                 st.json(dx)
                 st.markdown("**Transcript:**")
                 for turn in i.get("transcript", []):

@@ -22,17 +22,25 @@ customer — options stay neutral.
 
 import json
 import re
-
-from botocore.exceptions import ClientError
+from pathlib import Path
 
 from src.concierge.bedrock_client import BedrockChat
+from src.physics.category_materials import likely_materials, normalize_to_ontology
 from src.physics.fabric_ontology import FabricOntology
 
-MAX_QUESTIONS = 2
+MAX_QUESTIONS = 3
 
 # Error fragments that mean "this account/model won't do native tools".
+# Provider-agnostic (Bedrock ValidationExceptions, Gemini function-calling
+# errors) — anything else is re-raised untouched.
 TOOL_REJECTION_MARKERS = ("Operation not allowed", "toolChoice", "toolConfig",
-                          "tool use", "does not support tool")
+                          "tool use", "does not support tool", "function_call",
+                          "FunctionDeclaration", "function calling",
+                          "tool_choice", "tool_use_failed", "output_parse_failed")
+
+# Generous budget: reasoning models (gpt-oss) think before the tool call, and
+# the diagnosis payload is sizeable — 700 tokens proved too tight live.
+MAX_RESPONSE_TOKENS = 1600
 
 ASK_QUESTION = {"toolSpec": {
     "name": "ask_question",
@@ -60,18 +68,32 @@ SUBMIT_DIAGNOSIS = {"toolSpec": {
                 "TEXTURE_MISMATCH", "THERMAL_DISCOMFORT", "SIZE_FIT",
                 "COLOR_APPEARANCE", "QUALITY_DEFECT", "CHANGED_MIND", "OTHER"]},
             "material_issue_suspected": {"type": "boolean"},
+            "reported_feel": {"type": ["string", "null"],
+                              "description": "The customer's tactile description in their own adjectives, 2-6 words (e.g. 'rough and stiff'); null if feel was never discussed"},
+            "weather_context": {"type": ["string", "null"],
+                                "description": "Weather/wear context in which the garment disappointed (e.g. 'sweltering in humid heat'); null if not mentioned"},
+            "weather_suitability_mismatch": {
+                "type": ["boolean", "null"],
+                "description": "true if the customer wore the item in weather OUTSIDE the listed material's ideal range WITHOUT compensating precautions (e.g. layering, outerwear); false if worn in suitable conditions or precautions were taken; null if weather was never discussed"},
             "suspected_substitution": {
                 "type": ["string", "null"],
-                "description": "Fiber likely substituted for the claimed one, only if the customer's report contradicts the claimed fiber's expected feel"},
+                "description": "Fiber likely substituted for the claimed one, only if the customer's report matches a known substitution signature; null for quality issues within the genuine fiber (e.g. coarse low-grade cotton)"},
             "customer_summary": {"type": "string",
                                  "description": "One sentence in the customer's own words"},
             "seller_action": {"type": "string", "enum": [
-                "SUPPLY_CHAIN_AUDIT", "LISTING_FIX", "SIZE_CHART_FIX", "NO_ACTION"]},
-            "listing_fix_recommendation": {"type": ["string", "null"]},
+                "SUPPLY_CHAIN_AUDIT", "QUALITY_IMPROVEMENT", "LISTING_FIX",
+                "SIZE_CHART_FIX", "NO_ACTION"]},
+            "listing_fix_recommendation": {
+                "type": ["string", "null"],
+                "description": "Must name the claimed material, the specific gap, and the remedy matching the hypothesis: suspected substitution -> verify/declare the actual fiber or source the genuine one; low-grade genuine fiber -> source premium-grade material (e.g. combed cotton) or adjust the listing's feel claims; give BOTH remedies when one session cannot distinguish. For a pure weather-suitability mismatch, recommend clarifying the ideal season/weather in the listing"},
+            "customer_closing_message": {
+                "type": "string",
+                "description": "A warm, polite 2-4 sentence message shown to THE CUSTOMER. Always sincerely thank them and say their feedback is genuinely helpful and forwarded to the team to improve the product. If weather_suitability_mismatch is true, ALSO gently note the weather the product is best suited for and that wearing it outside those conditions (unless layered/paired with suitable items) can explain the discomfort — polite and non-blaming, framed as helpful guidance"},
             "confidence": {"type": "string", "enum": ["HIGH", "MEDIUM", "LOW"]},
         },
         "required": ["root_cause_category", "material_issue_suspected",
-                     "customer_summary", "seller_action", "confidence"],
+                     "reported_feel", "customer_summary", "seller_action",
+                     "customer_closing_message", "confidence"],
     }},
 }}
 
@@ -84,10 +106,14 @@ To finish:
   {{"action": "submit_diagnosis",
     "root_cause_category": "TEXTURE_MISMATCH|THERMAL_DISCOMFORT|SIZE_FIT|COLOR_APPEARANCE|QUALITY_DEFECT|CHANGED_MIND|OTHER",
     "material_issue_suspected": true,
+    "reported_feel": "<customer's tactile adjectives, or null>",
+    "weather_context": "<weather/wear context, or null>",
+    "weather_suitability_mismatch": "<true|false|null>",
     "suspected_substitution": "<fiber or null>",
     "customer_summary": "<one sentence>",
-    "seller_action": "SUPPLY_CHAIN_AUDIT|LISTING_FIX|SIZE_CHART_FIX|NO_ACTION",
-    "listing_fix_recommendation": "<text or null>",
+    "seller_action": "SUPPLY_CHAIN_AUDIT|QUALITY_IMPROVEMENT|LISTING_FIX|SIZE_CHART_FIX|NO_ACTION",
+    "listing_fix_recommendation": "<must name the claimed material, the gap, and the matching remedy (declare/verify fiber for substitution; premium sourcing for quality; both if unsure), or null>",
+    "customer_closing_message": "<warm 2-4 sentence message to the customer: thank them, feedback forwarded to the team; if weather mismatch, gently note the ideal weather and the layering caveat>",
     "confidence": "HIGH|MEDIUM|LOW"}}""".format(max_q=MAX_QUESTIONS)
 
 FORCE_DIAGNOSIS = ("\nIMPORTANT: You have used all your questions. "
@@ -95,17 +121,90 @@ FORCE_DIAGNOSIS = ("\nIMPORTANT: You have used all your questions. "
 
 _FENCE = re.compile(r"^```(?:json)?\s*|\s*```$", re.S)
 
+# Procedural memory: the interview policy / RESPONSE MATRIX lives in skill.md so
+# it can be iterated without touching code. Loaded once, cached.
+_SKILL_PATH = Path(__file__).resolve().parent / "skill.md"
+_SKILL_BODY = None
 
-def build_system_prompt(product: dict, ontology: FabricOntology,
-                        diagnosis_row: dict | None) -> str:
-    claimed = ontology.materials_from_listing(product)
-    ontology_lines = []
-    for m in claimed:
-        spec = ontology.expectations(m) or {}
-        ontology_lines.append(
-            f"- {m}: genuine feel = {', '.join(spec.get('expected_texture', []))}. "
+
+def _skill_policy() -> str:
+    """Return the procedural policy from skill.md (the section after the '---'
+    separator), with {max_questions} filled in."""
+    global _SKILL_BODY
+    if _SKILL_BODY is None:
+        raw = _SKILL_PATH.read_text(encoding="utf-8")
+        _SKILL_BODY = raw.split("---", 1)[-1].strip()
+    return _SKILL_BODY.replace("{max_questions}", str(MAX_QUESTIONS))
+
+# The four response quadrants (feel = material_issue_suspected,
+# weather = weather_suitability_mismatch). Computed deterministically by the
+# engine so the dashboard and seller logic never depend on the LLM's wording.
+CASE_FEEL_ONLY = "FEEL_ONLY"            # A: defect, weather fine
+CASE_WEATHER_ONLY = "WEATHER_ONLY"      # B: no defect, wrong weather
+CASE_FEEL_AND_WEATHER = "FEEL_AND_WEATHER"  # C: both
+CASE_NO_ISSUE = "NO_ISSUE"              # D: product fine, returned anyway
+
+
+def classify_case(material_issue, weather_mismatch) -> str:
+    feel = bool(material_issue)
+    weather = bool(weather_mismatch)  # None (weather not discussed) -> not a mismatch
+    if feel and not weather:
+        return CASE_FEEL_ONLY
+    if not feel and weather:
+        return CASE_WEATHER_ONLY
+    if feel and weather:
+        return CASE_FEEL_AND_WEATHER
+    return CASE_NO_ISSUE
+
+
+def _ontology_line(m: str, ontology: FabricOntology) -> str:
+    spec = ontology.expectations(m) or {}
+    return (f"- {m}: genuine feel = {', '.join(spec.get('expected_texture', []))}. "
+            f"Thermal = {spec.get('thermal', 'unknown')}; ideal weather = "
+            f"{', '.join(spec.get('weather_suitability', [])) or 'unknown'}. "
             f"Red flags = {', '.join(spec.get('failing_adjectives', []))}. "
             f"Common substitution = {', '.join(spec.get('substitution_suspects', [])) or 'none'}.")
+
+
+def _weave_line(w: str, ontology: FabricOntology) -> str:
+    spec = ontology.weave_expectations(w) or {}
+    return (f"- {w} (weave): should feel = {', '.join(spec.get('expected_texture', []))}. "
+            f"Feels wrong if = {', '.join(spec.get('failing_adjectives', []))}. "
+            f"Suited to weather = {', '.join(spec.get('weather_suitability', [])) or 'any'} "
+            f"({spec.get('warmth', 'neutral')}).")
+
+
+def resolve_materials(product: dict, ontology: FabricOntology,
+                      category: str | None = None) -> tuple[list[str], list[str], str]:
+    """Return (fibers, weaves, prior_note). When the listing states no fiber but
+    the category is known, fall back to the category's common-materials prior."""
+    fibers = ontology.materials_from_listing(product)
+    weaves = ontology.weaves_from_listing(product)
+    prior_note = ""
+    if not fibers and category:
+        prior = likely_materials(category)
+        seen = set()
+        for mat in prior:
+            for f in normalize_to_ontology(mat):
+                if f not in seen:
+                    seen.add(f)
+                    fibers.append(f)
+            for w in ontology.weaves_from_listing({"title": mat}):
+                if w not in weaves:
+                    weaves.append(w)
+        if prior:
+            prior_note = (
+                f"\n\nNO MATERIAL IS LISTED. This is a '{category}', which commonly "
+                f"uses: {', '.join(prior[:8])}. Ask the customer which fabric it is "
+                f"(or its closest feel) before diagnosing. Likely fibers/weaves below.")
+    return fibers, weaves, prior_note
+
+
+def build_system_prompt(product: dict, ontology: FabricOntology,
+                        diagnosis_row: dict | None, category: str | None = None) -> str:
+    claimed, weaves, prior_block = resolve_materials(product, ontology, category)
+    ontology_lines = [_ontology_line(m, ontology) for m in claimed]
+    weave_lines = [_weave_line(w, ontology) for w in weaves]
 
     evidence_block = "None on file."
     if diagnosis_row:
@@ -117,27 +216,19 @@ def build_system_prompt(product: dict, ontology: FabricOntology,
                 f"Prior customers reported: {', '.join(complaints)}. "
                 f"Example quotes: " + " | ".join(f'"{s}"' for s in sentences))
 
-    return f"""You are a returns assistant for a fashion marketplace. A customer is returning:
+    context = f"""You are a returns assistant for a fashion marketplace. A customer is returning:
   "{(product.get('title') or '')[:140]}"
-  Listed materials: {', '.join(claimed) or 'not stated'}.
+  Listed materials: {', '.join(claimed) or 'not stated'}.{prior_block}
 
-FABRIC ONTOLOGY (ground truth for the listed materials):
+FABRIC ONTOLOGY (ground truth for the listed / likely materials):
 {chr(10).join(ontology_lines) or '- (no ontology entry for the listed materials)'}
 
-PRIOR EVIDENCE from other customers (INTERNAL — never reveal or quote this to the customer, never put it in question options; use it only to decide which dimension to probe first):
-{evidence_block}
+WEAVE / CONSTRUCTION (surface feel independent of fiber — a satin should be smooth+glossy, a velvet plush, regardless of fiber):
+{chr(10).join(weave_lines) or '- (no specific weave detected)'}
 
-YOUR JOB: find the physical root cause of THIS return in at most {MAX_QUESTIONS} questions.
-Rules:
-- One question at a time. Options must be concrete, neutral, and mutually
-  exclusive — never suggest a defect the customer hasn't hinted at.
-- First question separates the big buckets (feel/texture vs fit/size vs looks vs
-  changed mind). Second question, if needed, drills into the winning bucket using
-  the ontology red flags for the listed materials.
-- Then submit the diagnosis. material_issue_suspected=true ONLY if the customer's
-  reported sensation contradicts the genuine feel of a listed material.
-  suspected_substitution ONLY if the sensation matches a known substitution.
-- confidence=HIGH only when the customer gave a specific physical description."""
+PRIOR EVIDENCE from other customers (INTERNAL — never reveal or quote this to the customer, never put it in question options; use it only to decide which dimension to probe first):
+{evidence_block}"""
+    return context + "\n\n" + _skill_policy()
 
 
 def _extract_json(text: str) -> dict:
@@ -160,9 +251,12 @@ class ConciergeSession:
     """
 
     def __init__(self, chat: BedrockChat, product: dict, ontology: FabricOntology,
-                 diagnosis_row: dict | None = None):
+                 diagnosis_row: dict | None = None, category: str | None = None):
         self.chat = chat
-        self.system = build_system_prompt(product, ontology, diagnosis_row)
+        self.ontology = ontology
+        self.claimed_materials, self.weaves, _ = resolve_materials(
+            product, ontology, category)
+        self.system = build_system_prompt(product, ontology, diagnosis_row, category)
         self.messages: list[dict] = []
         self.questions_asked = 0
         self.transcript: list[dict] = []
@@ -210,15 +304,17 @@ class ConciergeSession:
     def _step(self) -> dict:
         if self.mode == "tools":
             try:
-                resp = self.chat.converse(self.system, self.messages, self._tool_config())
+                resp = self.chat.converse(self.system, self.messages, self._tool_config(),
+                                          max_tokens=MAX_RESPONSE_TOKENS)
                 return self._from_tool_response(resp)
-            except ClientError as e:
+            except Exception as e:
                 if any(marker in str(e) for marker in TOOL_REJECTION_MARKERS):
                     self.mode = "json"
                     self._detool_history()
                 else:
                     raise
-        resp = self.chat.converse(self._json_system(), self.messages)
+        resp = self.chat.converse(self._json_system(), self.messages,
+                                  max_tokens=MAX_RESPONSE_TOKENS)
         return self._from_json_response(resp)
 
     def _from_tool_response(self, resp: dict) -> dict:
@@ -252,6 +348,31 @@ class ConciergeSession:
         return {"type": "question", **payload}
 
     def _diagnosis_event(self, payload: dict) -> dict:
+        # Ground the LLM's diagnosis with ontology facts the engine holds
+        # deterministically — the seller always sees claim vs physical truth,
+        # regardless of what the model chose to mention.
+        payload = {
+            **payload,
+            "case_class": classify_case(payload.get("material_issue_suspected"),
+                                        payload.get("weather_suitability_mismatch")),
+            "claimed_materials": self.claimed_materials,
+            "material_ground_truth": [
+                {"material": m,
+                 "genuine_feel": spec.get("expected_texture", []),
+                 "thermal": spec.get("thermal"),
+                 "ideal_weather": spec.get("weather_suitability", []),
+                 "common_substitutes": spec.get("substitution_suspects", [])}
+                for m in self.claimed_materials
+                if (spec := self.ontology.expectations(m))],
+            "weaves": self.weaves,
+            "weave_ground_truth": [
+                {"weave": w,
+                 "should_feel": spec.get("expected_texture", []),
+                 "feels_wrong_if": spec.get("failing_adjectives", []),
+                 "warmth": spec.get("warmth")}
+                for w in self.weaves
+                if (spec := self.ontology.weave_expectations(w))],
+        }
         self.transcript.append({"role": "diagnosis", **payload})
         return {"type": "diagnosis", "data": payload}
 

@@ -9,7 +9,7 @@ the seller dashboard.
     uv run python scripts/run_concierge.py --list     # show flagged products
     uv run python scripts/run_concierge.py --asin B0XXXXXXX
 
-Appends each completed session to data/processed/seller_insights.jsonl.
+Saves each completed session to the SQLite insights store (episodic memory).
 """
 
 import argparse
@@ -18,10 +18,14 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+# Windows consoles default to cp1252 and choke on chars models sometimes emit
+# (e.g. non-breaking hyphen U+2011). Force UTF-8 output.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from src.concierge.bedrock_client import BedrockChat
 from src.concierge.concierge import ConciergeSession
 from src.physics.fabric_ontology import FabricOntology
 
@@ -80,11 +84,14 @@ def main():
     print("=" * 72)
 
     if args.mock:
-        from src.concierge.mock_chat import MockBedrockChat
-        chat = MockBedrockChat()
-        print("(MOCK MODE — scripted responses, no AWS call is made)")
+        import os
+        os.environ["LLM_PROVIDER"] = "mock"
+    from src.concierge.provider import make_chat
+    chat = make_chat()
+    if "mock" in chat.model_id:
+        print("(MOCK MODE — scripted responses, no cloud call is made)")
     else:
-        chat = BedrockChat()
+        print(f"(model: {chat.model_id} via {chat.region})")
     session = ConciergeSession(chat, product, FabricOntology(), diagnosis_row)
     event = session.start()
 
@@ -98,23 +105,27 @@ def main():
         event = session.answer(raw)
 
     dx = event["data"]
+    closing = dx.get("customer_closing_message")
+    if closing:
+        print("\n" + "=" * 72)
+        print("MESSAGE TO CUSTOMER")
+        print(closing)
     print("\n" + "=" * 72)
     print("STRUCTURED DIAGNOSIS (what the seller dashboard receives)")
     print(json.dumps(dx, indent=2, ensure_ascii=False))
     print(f"\nSession cost: {chat.meter.summary()}")
 
-    PROCESSED.mkdir(parents=True, exist_ok=True)
-    with (PROCESSED / "seller_insights.jsonl").open("a", encoding="utf-8") as f:
-        f.write(json.dumps({
-            "parent_asin": asin,
-            "title": (product.get("title") or "")[:140],
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "diagnosis": dx,
-            "transcript": session.transcript,
-            "cost_usd": round(chat.meter.usd, 6),
-            "model_id": chat.model_id,
-        }, ensure_ascii=False) + "\n")
-    print(f"Saved to {PROCESSED / 'seller_insights.jsonl'}")
+    from src.concierge.insights_store import save_session, DB_PATH
+    save_session({
+        "parent_asin": asin,
+        "title": (product.get("title") or "")[:140],
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "diagnosis": dx,
+        "transcript": session.transcript,
+        "cost_usd": round(chat.meter.usd, 6),
+        "model_id": chat.model_id,
+    })
+    print(f"Saved to {DB_PATH}")
 
 
 if __name__ == "__main__":

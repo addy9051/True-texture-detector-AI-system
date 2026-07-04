@@ -133,7 +133,9 @@ conservative: only control-band outliers count as visual support.""")
     print("\n(Scripted mock -- live Bedrock path is one env change away once the")
     print(" AISPL account restriction is lifted; same engine, same output schema.)")
 
-    insights = read_jsonl(PROCESSED / "seller_insights.jsonl")
+    from src.concierge.insights_store import load_sessions, migrate_jsonl
+    migrate_jsonl(PROCESSED / "seller_insights.jsonl")
+    insights = load_sessions()
     section("PHASE 5 -- seller dashboard")
     print(f"""{len(insights)} concierge sessions logged. Explore everything above
 interactively -- KPIs, the flagged shortlist, per-product evidence, and

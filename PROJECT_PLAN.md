@@ -5,6 +5,22 @@
 > 48k real sentences (~90% precision above threshold vs ~50% at the old 0.45)
 > Budget: $100 AWS credits · Projected total AWS spend: **under $20** · Spent so far: $0
 
+## 0b. Agent memory architecture (staged)
+
+Three tiers, deliberately kept lightweight — infrastructure is added only where
+the simple approach breaks (see the reasoning in the git history / chat log).
+
+| Tier | What | Implementation | Why not more |
+|---|---|---|---|
+| **Semantic** (durable facts) | fiber + weave ontology, category priors | `fabric_physics.json`, `category_materials.json` — injected into the prompt | Only ~a few KB; RAG over 35 facts is slower, costlier, and can retrieve-miss. Stays git-diffable. |
+| **Procedural** (how to act) | interview policy + RESPONSE MATRIX | `src/concierge/skill.md`, loaded into the system prompt | Loaded every turn, not retrieved — a versioned file separates policy from code |
+| **Episodic** (dated events) | concierge sessions + transcripts | `src/concierge/insights_store.py` → SQLite (SQL recency: by ASIN/date/case_class) | Vector-store relevance is a later stage, once session volume justifies it |
+
+Later stages (not built): pgvector (Supabase/Neon) for episodic *relevance* search
+at volume; a summarizer agent distilling patterns into a **separate** learned-facts
+namespace with provenance + a promotion threshold (never auto-mutating the curated
+ontology). Kept local (SQLite) for now to avoid another billing dependency.
+
 ## 1. The business case — India-first (validated 2026-07)
 
 Primary target market: Indian fashion ecommerce (Myntra, Flipkart, Meesho, Ajio,
@@ -138,9 +154,30 @@ Instagram reels / LinkedIn posts — the underlying problem is real (NRF: $890B 
   Photo-level appearance comparison cannot see texture; text stays primary.
   Remaining visual avenue: multimodal-LLM image comparison via Bedrock when
   account access is restored. Run: `uv run python scripts/run_phase3.py --control 12`
-- **Phase 4 — Bedrock Returns Concierge** ✅ code written (2026-07-03), awaiting AWS
-  setup: Converse API + Amazon Nova Pro (`apac.` inference profile, ap-south-1;
-  Anthropic ruled out — Marketplace-billed, not covered by AWS credits),
+- **Phase 4 — Returns Concierge** ✅ code written (2026-07-03), now
+  **provider-agnostic and LIVE-VERIFIED 2026-07-04**: primary = gpt-oss-120b via
+  Groq free tier (no card/billing entity — sidesteps the AISPL gate; Gemini
+  adapter also available but parked over a Google billing issue). First real
+  session passed review: neutral first question, correct polyester-substitution
+  inference from the customer's words, native forced-tool transport, 2-question
+  budget held, $0 billed. **Diagnosis upgraded (grounded + two-remedy): 3-question
+  budget adds a weather/wear probe; the engine injects material ground truth
+  (genuine feel, thermal, ideal weather) into every diagnosis from the ontology
+  rather than trusting the model to recite it; recommendations must name the
+  claimed material and match the remedy to the cause — SUPPLY_CHAIN_AUDIT +
+  declare/verify fiber for a suspected substitution vs. the new QUALITY_IMPROVEMENT
+  + source premium-grade material for a low-grade genuine fiber. Both paths
+  verified live (shiny→polyester→audit; rough→null→quality). Plus a customer-
+  facing 2×2 RESPONSE MATRIX (feel × weather), engine-classified into case_class:
+  FEEL_ONLY (apology + supplier action), WEATHER_ONLY (weather education +
+  intuitive adjustments, no seller fault), FEEL_AND_WEATHER (apology + material/
+  weather guidance + defect mitigation), NO_ISSUE (apology + ideal-use guidance;
+  seller escalated to distributor consultation only past a returns threshold via
+  seller_escalation.py). All four quadrants verified live on Groq.** Fallback = AWS Bedrock
+  (Mistral Large 24.07 now, Nova Pro when the account clears; Anthropic ruled
+  out — Marketplace-billed, not covered by AWS credits). `LLM_PROVIDER` env
+  switches; `scripts/check_llm.py` verifies the active provider.
+  Original AWS design notes:
   tool-use-forced structure (`ask_question` max 2 rounds → `submit_diagnosis`),
   ontology + Phase-2 evidence in the system prompt (evidence steers probing but is
   never revealed to the customer), per-session cost meter with $0.25 hard stop.
@@ -152,6 +189,24 @@ Instagram reels / LinkedIn posts — the underlying problem is real (NRF: $890B 
   session log with transcripts (mock rows badged `MOCK`), complaint-signal and
   root-cause charts. Run: `uv run streamlit run app.py`.
   Seed demo sessions while AWS is blocked: `uv run python scripts/seed_mock_insights.py`
+- **Category material prior** ✅ 2026-07-04: `data/category_materials.json` maps 93
+  apparel categories (Myntra-style India taxonomy: Men's/Women's Topwear, Indian &
+  Festive, Bottomwear, Innerwear, Activewear, Lingerie) to their top ~10 materials
+  (930 entries). `src/physics/category_materials.py` normalizes catalog materials
+  to ontology fibers. Wired into the concierge: when a listing states no fabric,
+  it grounds on the category's likely fibers. Report: `uv run python scripts/category_coverage.py`
+- **Weave ontology (second axis)** ✅ 2026-07-04: `fabric_physics.json` gained a
+  `weaves` section — 23 constructions (satin, crepe, velvet, denim, fleece, net,
+  jacquard, organza, lace…) with surface-feel expectations, failing adjectives, and
+  a warmth hint, orthogonal to fiber. A satin reported as "rough" is now a flaggable
+  feel mismatch regardless of fiber. This lifted catalog grounding 86.5% → **98%**
+  (only "tissue/zari" and generic "blended" remain). The concierge detects both a
+  product's fiber AND weave, injects both into the prompt and the grounded
+  diagnosis (`weave_ground_truth`), and the dashboard shows a 🧵 Weave line.
+  Weaves also carry `weather_suitability` (web-grounded 2026-07): the concierge
+  combines fiber + weave weather and is told construction usually dominates
+  warmth — a cotton fleece flags a hot-weather mismatch even though cotton is
+  hot-ideal, because the fleece construction traps heat.
 - **Phase 6 — Demo polish** ✅ 2026-07-03: `scripts/demo.py` — narrated end-to-end
   tour replaying only real computed results (market case → calibrated filter →
   gated diagnosis → the two-condition negative result → auto-played mock concierge

@@ -1,0 +1,117 @@
+{
+  "version": "0.1",
+  "description": "Top ~10 most common materials per apparel category (Myntra-style taxonomy, India market), ordered most->least common. Mixes fibers (cotton, polyester, wool) and common fabric constructions (denim, fleece, georgette) as real catalogs do. Used as a MATERIAL PRIOR when a listing does not state its fabric: given a product's category, the concierge/diagnosis can probe the likely materials. Constructions map to underlying fibers for the physics ontology via src/physics/category_materials.py.",
+  "departments": {
+    "Men's Topwear": {
+      "Tshirts": ["cotton", "cotton blend", "poly-cotton", "polyester", "viscose (rayon)", "modal", "cotton-spandex (lycra)", "supima/pima cotton", "linen", "bamboo"],
+      "Shirts": ["cotton", "cotton blend", "poly-cotton", "linen", "polyester", "viscose (rayon)", "chambray", "khadi", "corduroy", "seersucker"],
+      "Kurtas": ["cotton", "cotton blend", "viscose (rayon)", "linen", "silk", "khadi", "poly-cotton", "chanderi", "art silk", "jacquard/brocade"],
+      "Sweatshirts": ["cotton", "poly-cotton", "cotton blend", "french terry", "fleece", "polyester", "cotton-polyester fleece", "acrylic", "viscose (rayon)", "terry"],
+      "Jackets": ["polyester", "nylon", "cotton", "denim", "faux leather", "fleece", "wool blend", "poly-cotton", "nylon-polyester", "leather"],
+      "Sweaters": ["acrylic", "wool", "cotton", "acrylic-wool blend", "wool blend", "cashmere", "cotton-acrylic", "nylon blend", "angora blend", "viscose blend"],
+      "Blazers": ["polyester", "poly-viscose", "wool blend", "cotton", "linen", "poly-cotton", "tweed", "terry-rayon", "velvet", "silk blend"],
+      "Tunics": ["cotton", "viscose (rayon)", "cotton blend", "linen", "polyester", "silk", "modal", "khadi", "crepe", "georgette"]
+    },
+    "Men's Indian & Festive Wear": {
+      "Kurtas": ["cotton", "cotton blend", "silk", "art silk", "viscose (rayon)", "linen", "khadi", "chanderi", "poly-cotton", "jacquard/brocade"],
+      "Kurta Sets": ["cotton", "silk", "art silk", "cotton blend", "viscose (rayon)", "linen", "jacquard/brocade", "chanderi", "poly-cotton", "dupion silk"],
+      "Nehru Jackets": ["silk", "art silk", "cotton", "jacquard/brocade", "polyester", "velvet", "poly-viscose", "wool blend", "dupion silk", "khadi"],
+      "Dhotis": ["cotton", "silk", "art silk", "cotton blend", "khadi", "poly-cotton", "linen", "viscose (rayon)", "tissue/zari", "blended"],
+      "Sherwani": ["silk", "art silk", "jacquard/brocade", "velvet", "cotton silk", "polyester", "dupion silk", "banarasi silk", "poly-viscose", "satin"],
+      "Pyjamas": ["cotton", "cotton blend", "viscose (rayon)", "silk", "poly-cotton", "linen", "art silk", "khadi", "modal", "satin"]
+    },
+    "Men's Bottomwear": {
+      "Trousers": ["cotton", "poly-cotton", "polyester", "poly-viscose", "linen", "cotton blend", "viscose (rayon)", "wool blend", "cotton-spandex (lycra)", "corduroy"],
+      "Jeans": ["cotton denim", "cotton-polyester denim", "cotton-elastane (stretch)", "cotton-spandex", "poly-cotton denim", "stretch denim", "cotton blend", "rayon-cotton denim", "cotton-lycra", "denim with modal"],
+      "Track Pants": ["polyester", "cotton", "poly-cotton", "cotton-polyester", "nylon", "polyester-spandex", "french terry", "fleece", "cotton blend", "cotton-spandex (lycra)"],
+      "Shorts": ["cotton", "poly-cotton", "polyester", "cotton blend", "linen", "denim", "nylon", "french terry", "viscose (rayon)", "cotton-spandex (lycra)"]
+    },
+    "Men's Innerwear & Sleepwear": {
+      "Innerwear Vests": ["cotton", "combed cotton", "cotton-spandex (lycra)", "cotton blend", "poly-cotton", "modal", "micro modal", "bamboo", "ribbed cotton", "spandex blend"],
+      "Trunk": ["cotton", "cotton-spandex (elastane)", "combed cotton", "modal", "micro modal", "cotton blend", "poly-cotton", "bamboo", "nylon-spandex", "lycra"],
+      "Briefs": ["cotton", "cotton-spandex", "combed cotton", "modal", "micro modal", "cotton blend", "poly-cotton", "bamboo", "nylon", "lycra"],
+      "Boxers": ["cotton", "poly-cotton", "cotton blend", "polyester", "satin", "modal", "flannel cotton", "viscose (rayon)", "jersey knit", "spandex blend"],
+      "Thermal Tops": ["cotton", "polyester", "cotton-polyester", "wool blend", "acrylic", "merino wool", "poly-cotton", "modal", "spandex blend", "microfiber"],
+      "Thermal Bottoms": ["cotton", "polyester", "cotton-polyester", "wool blend", "acrylic", "merino wool", "poly-cotton", "modal", "spandex blend", "microfiber"],
+      "Thermal Set": ["cotton", "polyester", "cotton-polyester", "wool blend", "acrylic", "merino wool", "poly-cotton", "modal", "spandex blend", "microfiber"],
+      "Lingerie accessories": ["nylon", "polyester", "cotton", "spandex (elastane)", "lace (nylon)", "satin", "mesh", "microfiber", "cotton blend", "modal"],
+      "Shapewear": ["nylon-spandex", "polyester-spandex", "nylon", "spandex (elastane)", "cotton-spandex", "microfiber", "powernet", "polyamide", "lycra", "modal blend"]
+    },
+    "Men's Sports & Activewear": {
+      "Innerwear Vests Tshirts": ["polyester", "cotton", "poly-cotton", "polyester-spandex", "cotton-spandex (lycra)", "microfiber", "nylon-spandex", "dri-fit polyester", "modal", "bamboo"],
+      "Track Pants": ["polyester", "poly-cotton", "cotton", "polyester-spandex", "nylon", "french terry", "fleece", "cotton blend", "microfiber", "cotton-spandex (lycra)"],
+      "Shorts": ["polyester", "poly-cotton", "cotton", "polyester-spandex", "nylon", "microfiber", "dri-fit polyester", "cotton blend", "spandex (elastane)", "mesh polyester"],
+      "Jackets": ["polyester", "nylon", "polyester-spandex", "fleece", "poly-cotton", "microfiber", "nylon-polyester", "softshell (poly-spandex)", "cotton blend", "mesh"],
+      "Sweatshirts": ["cotton", "poly-cotton", "polyester", "french terry", "fleece", "cotton-polyester", "acrylic", "cotton blend", "microfiber", "viscose (rayon)"],
+      "Swim Bottoms": ["polyester-spandex", "nylon-spandex", "polyester", "nylon", "spandex (elastane)", "polyamide-elastane", "lycra", "PBT polyester", "microfiber", "poly-elastane"],
+      "Tights": ["polyester-spandex", "nylon-spandex", "polyester", "spandex (elastane)", "nylon", "lycra", "microfiber", "cotton-spandex", "polyamide", "compression polyester"],
+      "Trunk": ["cotton-spandex", "polyester", "microfiber", "modal", "cotton", "nylon-spandex", "poly-cotton", "bamboo", "combed cotton", "lycra"],
+      "Tracksuits": ["polyester", "poly-cotton", "cotton", "polyester-spandex", "nylon", "fleece", "french terry", "microfiber", "cotton blend", "cotton-spandex (lycra)"],
+      "Lounge Pants": ["cotton", "poly-cotton", "cotton blend", "viscose (rayon)", "french terry", "modal", "polyester", "fleece", "linen", "jersey knit"],
+      "Lounge Shorts": ["cotton", "poly-cotton", "cotton blend", "french terry", "viscose (rayon)", "modal", "polyester", "jersey knit", "linen", "fleece"]
+    },
+    "Women's Indian & Fusion Wear": {
+      "Kurtas & Suits": ["cotton", "viscose (rayon)", "cotton blend", "silk", "art silk", "georgette", "chiffon", "crepe", "chanderi", "poly-cotton"],
+      "Kurtis": ["cotton", "viscose (rayon)", "cotton blend", "crepe", "georgette", "poly-cotton", "silk", "modal", "chanderi", "khadi"],
+      "Tunics & Tops": ["cotton", "viscose (rayon)", "polyester", "cotton blend", "crepe", "georgette", "modal", "chiffon", "linen", "silk"],
+      "Sarees": ["silk", "art silk", "georgette", "chiffon", "cotton", "cotton silk", "satin", "crepe", "net", "banarasi silk"],
+      "Ethnic Wear": ["silk", "cotton", "art silk", "georgette", "chiffon", "crepe", "net", "velvet", "satin", "jacquard/brocade"],
+      "Leggings": ["cotton-spandex (lycra)", "cotton", "viscose-lycra", "poly-cotton", "modal", "polyester-spandex", "cotton blend", "nylon-spandex", "cotton-polyester-spandex", "shimmer lycra"],
+      "Salwars & Churidars": ["cotton", "viscose (rayon)", "cotton blend", "crepe", "poly-cotton", "silk", "cotton-spandex (lycra)", "modal", "georgette", "satin"],
+      "Skirts & Palazzos": ["viscose (rayon)", "cotton", "crepe", "georgette", "poly-cotton", "cotton blend", "silk", "chiffon", "satin", "modal"],
+      "Dress Materials": ["cotton", "silk", "art silk", "crepe", "georgette", "chiffon", "cotton blend", "satin", "chanderi", "jacquard/brocade"],
+      "Lehenga Cholis": ["net", "silk", "art silk", "georgette", "satin", "velvet", "jacquard/brocade", "taffeta", "organza", "crepe"],
+      "Dupattas & Shawls": ["chiffon", "cotton", "silk", "georgette", "net", "art silk", "wool", "viscose (rayon)", "chanderi", "organza"],
+      "Jackets": ["cotton", "silk", "art silk", "jacquard/brocade", "velvet", "polyester", "denim", "poly-viscose", "wool blend", "khadi"]
+    },
+    "Women's Western Wear": {
+      "Dresses": ["polyester", "cotton", "viscose (rayon)", "georgette", "crepe", "chiffon", "cotton blend", "satin", "poly-cotton", "modal"],
+      "Tops": ["viscose (rayon)", "polyester", "cotton", "cotton blend", "georgette", "crepe", "chiffon", "poly-cotton", "modal", "satin"],
+      "Tshirts": ["cotton", "cotton blend", "poly-cotton", "polyester", "viscose (rayon)", "modal", "cotton-spandex (lycra)", "jersey knit", "bamboo", "supima/pima cotton"],
+      "Jeans": ["cotton denim", "cotton-elastane (stretch)", "cotton-spandex", "cotton-lycra", "poly-cotton denim", "cotton-polyester-spandex", "rayon-cotton denim", "cotton blend", "denim with modal", "stretch denim"],
+      "Trousers & Capris": ["polyester", "poly-cotton", "cotton", "viscose (rayon)", "poly-viscose", "cotton blend", "cotton-spandex (lycra)", "linen", "crepe", "ponte"],
+      "Shorts & Skirts": ["cotton", "poly-cotton", "denim", "viscose (rayon)", "polyester", "cotton blend", "crepe", "linen", "georgette", "satin"],
+      "Co-ords": ["polyester", "viscose (rayon)", "cotton", "crepe", "cotton blend", "georgette", "poly-cotton", "satin", "modal", "linen"],
+      "Playsuits": ["polyester", "viscose (rayon)", "cotton", "crepe", "georgette", "cotton blend", "poly-cotton", "satin", "chiffon", "modal"],
+      "Jumpsuits": ["polyester", "viscose (rayon)", "crepe", "cotton", "cotton blend", "georgette", "poly-cotton", "satin", "denim", "modal"],
+      "Shrugs": ["viscose (rayon)", "cotton", "acrylic", "poly-cotton", "polyester", "georgette", "chiffon", "cotton blend", "net", "modal"],
+      "Sweaters & Sweatshirts": ["acrylic", "cotton", "wool", "poly-cotton", "cotton blend", "fleece", "french terry", "acrylic blend", "viscose (rayon)", "wool blend"],
+      "Jackets & Coats": ["polyester", "nylon", "cotton", "wool blend", "denim", "fleece", "faux leather", "poly-cotton", "wool", "faux fur"],
+      "Blazers & Waistcoats": ["polyester", "poly-viscose", "cotton", "poly-cotton", "wool blend", "crepe", "linen", "ponte", "velvet", "tweed"]
+    },
+    "Women Sportswear": {
+      "Bra": ["nylon-spandex", "polyester-spandex", "polyester", "nylon", "spandex (elastane)", "cotton-spandex", "microfiber", "polyamide-elastane", "lycra", "mesh"],
+      "Capris": ["polyester-spandex", "nylon-spandex", "polyester", "cotton-spandex", "spandex (elastane)", "nylon", "lycra", "microfiber", "cotton blend", "polyamide"],
+      "Lounge Tshirts": ["cotton", "poly-cotton", "cotton blend", "modal", "polyester", "viscose (rayon)", "cotton-spandex (lycra)", "jersey knit", "bamboo", "supima/pima cotton"],
+      "Shorts": ["polyester", "polyester-spandex", "cotton", "poly-cotton", "nylon-spandex", "cotton-spandex", "microfiber", "nylon", "spandex (elastane)", "mesh"],
+      "Socks": ["cotton", "cotton-spandex", "cotton blend", "poly-cotton", "nylon", "polyester", "wool", "bamboo", "terry cotton", "nylon-spandex"],
+      "Sweatshirts": ["cotton", "poly-cotton", "polyester", "french terry", "fleece", "cotton blend", "acrylic", "cotton-polyester", "microfiber", "viscose (rayon)"],
+      "Tights": ["polyester-spandex", "nylon-spandex", "polyester", "spandex (elastane)", "nylon", "lycra", "microfiber", "cotton-spandex", "polyamide", "compression polyester"],
+      "Tshirts": ["polyester", "cotton", "poly-cotton", "polyester-spandex", "cotton-spandex (lycra)", "microfiber", "modal", "dri-fit polyester", "viscose (rayon)", "bamboo"],
+      "Track Pants": ["polyester", "poly-cotton", "cotton", "polyester-spandex", "nylon", "french terry", "fleece", "cotton blend", "microfiber", "cotton-spandex (lycra)"],
+      "Tops": ["polyester", "polyester-spandex", "nylon-spandex", "cotton", "cotton-spandex", "microfiber", "spandex (elastane)", "modal", "nylon", "mesh"],
+      "Tracksuits": ["polyester", "poly-cotton", "polyester-spandex", "cotton", "nylon", "fleece", "microfiber", "french terry", "cotton blend", "cotton-spandex (lycra)"]
+    },
+    "Women Lingerie & Loungewear": {
+      "Bra": ["nylon-spandex", "polyester-spandex", "cotton", "nylon", "polyester", "lace (nylon)", "cotton-spandex", "satin", "microfiber", "modal"],
+      "Briefs": ["cotton", "cotton-spandex", "nylon-spandex", "nylon", "modal", "lace (nylon)", "microfiber", "cotton blend", "polyester", "bamboo"],
+      "Baby Dolls": ["satin", "nylon", "polyester", "lace (nylon)", "chiffon", "net", "spandex blend", "georgette", "microfiber", "modal"],
+      "Bodysuit": ["nylon-spandex", "polyester-spandex", "cotton-spandex", "spandex (elastane)", "nylon", "lace (nylon)", "microfiber", "polyamide-elastane", "modal", "mesh"],
+      "Bath Robe and Wraps": ["cotton (terry)", "cotton blend", "microfiber", "fleece", "polyester", "terry cotton", "satin", "waffle cotton", "bamboo", "velour"],
+      "Burqas": ["polyester", "nida (polyester)", "georgette", "crepe", "chiffon", "poly-cotton", "satin", "cotton", "viscose (rayon)", "koshibo (polyester)"],
+      "Blazers": ["polyester", "poly-viscose", "cotton", "poly-cotton", "crepe", "wool blend", "linen", "ponte", "velvet", "satin"],
+      "Boxers": ["cotton", "poly-cotton", "cotton blend", "satin", "modal", "viscose (rayon)", "polyester", "flannel cotton", "jersey knit", "spandex blend"],
+      "Co-ords": ["cotton", "viscose (rayon)", "poly-cotton", "crepe", "polyester", "cotton blend", "modal", "satin", "georgette", "linen"],
+      "Camisoles": ["cotton", "modal", "nylon-spandex", "cotton-spandex", "satin", "polyester", "lace (nylon)", "viscose (rayon)", "microfiber", "cotton blend"],
+      "Capris": ["cotton", "poly-cotton", "cotton blend", "viscose (rayon)", "modal", "cotton-spandex", "jersey knit", "polyester", "french terry", "linen"],
+      "Caps": ["cotton", "poly-cotton", "polyester", "cotton blend", "acrylic", "nylon", "wool", "denim", "twill cotton", "fleece"],
+      "Coats": ["polyester", "wool blend", "nylon", "cotton", "wool", "fleece", "faux fur", "poly-cotton", "faux leather", "tweed"],
+      "Innerwear Vests": ["cotton", "cotton-spandex (lycra)", "combed cotton", "modal", "cotton blend", "poly-cotton", "micro modal", "bamboo", "ribbed cotton", "spandex blend"],
+      "Jackets": ["polyester", "nylon", "cotton", "denim", "fleece", "wool blend", "faux leather", "poly-cotton", "faux fur", "wool"],
+      "Jeggings": ["cotton-spandex (lycra)", "cotton-polyester-spandex", "viscose-lycra", "poly-cotton", "cotton blend", "rayon-spandex", "nylon-spandex", "modal-spandex", "denim-look polyester", "cotton-lycra"],
+      "Jeans": ["cotton denim", "cotton-elastane (stretch)", "cotton-spandex", "cotton-lycra", "poly-cotton denim", "stretch denim", "cotton blend", "rayon-cotton denim", "cotton-polyester-spandex", "denim with modal"],
+      "Jumpsuit": ["polyester", "viscose (rayon)", "cotton", "crepe", "cotton blend", "georgette", "poly-cotton", "satin", "denim", "modal"],
+      "Nightdress": ["cotton", "satin", "poly-cotton", "modal", "viscose (rayon)", "polyester", "cotton blend", "silk", "chiffon", "jersey knit"]
+    }
+  }
+}
