@@ -113,7 +113,30 @@ uv run python scripts/run_concierge.py --mock
 uv run python scripts/seed_mock_insights.py
 uv run streamlit run app.py
 
-# Or the narrated end-to-end tour:
+# 6. LLM Ops loop — trace, evaluate, diagnose, gate, release (offline $0, or --live)
+uv run python scripts/run_llmops.py            # mock pipeline demo
+uv run python scripts/run_llmops.py --live --judge
+```
+
+### LLM Ops tracing (Langfuse Cloud, optional)
+
+Traces always write to `data/processed/traces.jsonl` and the dashboard's 🔬 LLM Ops
+tab for $0. To also stream them to the **Langfuse** UI (trace waterfall, token/cost
+dashboards, eval scores per trace):
+
+1. Sign up at <https://cloud.langfuse.com> (free tier, no card) → create a project → copy the keys.
+2. `setx LANGFUSE_PUBLIC_KEY "pk-lf-..."` and `setx LANGFUSE_SECRET_KEY "sk-lf-..."` → new terminal.
+   If your project is in the **US** region, also `setx LANGFUSE_HOST "https://us.cloud.langfuse.com"`
+   (EU is the default host).
+3. Re-run `uv run python scripts/run_llmops.py --live --judge` — each run prints its Langfuse URL.
+
+Uses the Langfuse v4 (OpenTelemetry) SDK; emission is guarded, so an unreachable
+Langfuse never breaks a run. LangSmith is intentionally not used — it's coupled to
+LangChain, which this project doesn't use; Langfuse is framework-agnostic.
+
+Narrated end-to-end tour of all results:
+
+```powershell
 uv run python scripts/demo.py
 ```
 
@@ -182,6 +205,7 @@ src/visual/clip_audit.py        CLIP/color audit + the control-group experiment
 src/concierge/                  LLM clients, interview engine, offline mock
 src/concierge/skill.md          procedural memory: the interview policy / RESPONSE MATRIX
 src/concierge/insights_store.py episodic memory: sessions in SQLite (SQL recency)
+src/llmops/                     LLM Ops loop: trace · observe · eval (LLM-judge) · diagnose · gate · release
 scripts/                        one runnable script per phase + demo.py
 app.py                          Streamlit seller dashboard
 PROJECT_PLAN.md                 market case, plan audit, phase log, budget

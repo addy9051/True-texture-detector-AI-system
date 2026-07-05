@@ -60,8 +60,8 @@ k4.metric("Negation false-hits suppressed",
           sum(d.get("negated_suppressed", 0) for d in diagnoses))
 k5.metric("Concierge sessions", len(insights))
 
-tab_shortlist, tab_concierge = st.tabs(
-    ["📋 Mismatch shortlist", "💬 Concierge insights"])
+tab_shortlist, tab_concierge, tab_llmops = st.tabs(
+    ["📋 Mismatch shortlist", "💬 Concierge insights", "🔬 LLM Ops"])
 
 # ---------------------------------------------------------- shortlist tab
 with tab_shortlist:
@@ -206,3 +206,49 @@ with tab_concierge:
                         st.markdown(f"🧑 {turn.get('text')}")
                 st.caption(f"model: {i.get('model_id')} · "
                            f"cost: ${i.get('cost_usd', 0):.4f}")
+
+# ---------------------------------------------------------- LLM Ops tab
+with tab_llmops:
+    report_path = PROCESSED / "llmops_report.json"
+    if not report_path.exists():
+        st.info("No LLM Ops report yet. Run `uv run python scripts/run_llmops.py` "
+                "(add `--live --judge` for real evaluation).")
+    else:
+        rep = json.loads(report_path.read_text(encoding="utf-8"))
+        g = rep["gate"]
+        st.caption(f"Last loop: {rep['timestamp'][:16]} · provider **{rep['provider']}** · "
+                   f"model `{rep.get('model_id') or '—'}`"
+                   + (" · *mock (pipeline demo)*" if rep.get("mock") else ""))
+        c1, c2, c3 = st.columns(3)
+        (c1.success if g["decision"] == "SHIP" else c1.error)(f"🚦 Gate: **{g['decision']}**")
+        c2.metric("Pass rate", f"{g['pass_rate']:.0%}", help=f"need {g['threshold']:.0%}")
+        c3.metric("Good runs", f"{g['n_good']}/{g['n_runs']}")
+        if g.get("released"):
+            st.info(f"✅ Released version {g['released']['version']} — prompt "
+                    f"`{g['released']['prompt_version']}` blessed (skill.md hash).")
+
+        st.subheader("Per-run: trace → observe → eval → diagnose")
+        for r in rep["runs"]:
+            ev, h = r["eval"], r["health"]
+            ok = ev["passed"] and h["healthy"]
+            j = ev.get("judge")
+            jtxt = f" · judge {j['avg']}/5" if j and not j.get("error") else ""
+            with st.expander(
+                    f"{'✅' if ok else '❌'} {r['scenario']} — case {r.get('case_class','-')} · "
+                    f"{r['latency_ms']/1000:.1f}s · {r['tokens']} tok · {r['transport']}{jtxt}"):
+                cols = st.columns([1, 1])
+                with cols[0]:
+                    st.markdown("**Health** (was it healthy?)")
+                    st.write("healthy ✅" if h["healthy"] else "unhealthy ❌ — " + "; ".join(h["reasons"]))
+                    st.json(h["metrics"])
+                with cols[1]:
+                    st.markdown("**Eval** (was it good?)")
+                    for a in ev["assertions"]:
+                        mark = "✅" if a["passed"] else ("❌" if a["critical"] else "⚠️")
+                        st.markdown(f"{mark} `{a['name']}` — {a['detail']}")
+                    if j and not j.get("error"):
+                        st.caption(f"judge: {j.get('notes','')}")
+                if r["diagnosis"]:
+                    st.markdown("**Diagnose** (where/why + the knob to turn)")
+                    for f in r["diagnosis"]:
+                        st.warning(f"**{f['issue']}** → *{f['knob']}*  \n{f['suggested_fix']}")

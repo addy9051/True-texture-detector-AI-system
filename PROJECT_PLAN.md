@@ -212,6 +212,22 @@ Instagram reels / LinkedIn posts — the underlying problem is real (NRF: $890B 
   gated diagnosis → the two-condition negative result → auto-played mock concierge
   → dashboard pointer); README rewritten as the portfolio-facing results document.
   Remaining nice-to-have: dashboard screenshot/GIF for the README.
+- **Phase 7 — LLM Ops** ✅ 2026-07-05 (`src/llmops/`): the self-evolving feedback
+  loop from the reference architecture. **Trace** (1 trace/run — `TracingChat`
+  wraps any provider transparently, records per-call latency/tokens/tool-use/errors
+  to `traces.jsonl`; **also streams to Langfuse Cloud** when `LANGFUSE_*` env is set
+  — v4 OTel SDK, a root `agent` observation with a child `generation` per LLM call,
+  tokens→cost dashboards, eval+judge scores attached to the trace; guarded so an
+  unreachable Langfuse never breaks a run. LangSmith deliberately not used — it's
+  LangChain-coupled; this project uses raw provider SDKs) → **Observe** (healthy? latency,
+  tokens, cost, convergence) + **Eval** (good? deterministic checks — schema,
+  question budget, case-class consistency, action⇒recommendation, expected-case —
+  plus optional LLM-as-judge on neutrality/grounding/matrix-fit/actionability) →
+  **Diagnose** (each failure → the knob to turn: skill.md / model / transport) →
+  **Gate** (ship vs fix at an 80% pass bar) → **Release** (bless a prompt+config
+  version = skill.md hash, in `releases.json` — the feedback arrow). Runs offline
+  on the mock ($0 pipeline demo) or live: `uv run python scripts/run_llmops.py
+  [--live --judge]`. Dashboard gains a 🔬 LLM Ops tab. Local-first, no new deps.
 
 ## 5. AWS budget for the $100 credits
 
