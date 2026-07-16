@@ -13,14 +13,18 @@ dependencies = [
     "transformers>=4.40",
     "pillow>=10.0",
     "requests>=2.31",
-    # Phase 4-5 (Bedrock concierge + dashboard)
+    # Phase 4-5 (LangGraph concierge + Portkey AI gateway + dashboard)
+    "langgraph>=0.4",
+    "langchain>=0.3",
+    "langchain-openai>=0.3",
+    "portkey-ai>=2.0",
+    "python-dotenv>=1.0.0",
     "boto3>=1.34",
     "streamlit>=1.35",
     # Phase 7 (LLM Ops tracing — Langfuse Cloud)
     "langfuse>=4.0",
     "rembg[cpu]>=2.0.76",
     "numba>=0.60",
-    "google-genai>=1.0",
 ]
 
 [tool.uv]

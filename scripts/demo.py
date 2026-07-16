@@ -111,12 +111,12 @@ conservative: only control-band outliers count as visual support.""")
         print("Run `uv run python scripts/run_phase3.py` to reproduce this experiment.")
 
     section("PHASE 4 -- returns concierge (auto-played mock session)")
-    from src.concierge.concierge import ConciergeSession
-    from src.concierge.mock_chat import MockBedrockChat
+    from src.concierge.graph import ConciergeSession
+    from src.concierge.mock_chat import MockChatModel
     from src.physics.fabric_ontology import FabricOntology
     target = star or flagged[0]
     product = next(p for p in products if p["parent_asin"] == target["parent_asin"])
-    session = ConciergeSession(MockBedrockChat(), product, FabricOntology(), target)
+    session = ConciergeSession(product, FabricOntology(), target, provider="mock")
     scripted = ["How the fabric feels",
                 "it looks shiny and feels like cheap plastic, not cotton at all"]
     print(f"Returning: {target['title'][:65]}\n")

@@ -16,8 +16,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from src.concierge.concierge import ConciergeSession
-from src.concierge.mock_chat import MockBedrockChat
+from src.concierge.graph import ConciergeSession
+from src.concierge.mock_chat import MockChatModel
 from src.physics.fabric_ontology import FabricOntology
 
 RAW = ROOT / "data" / "raw"
@@ -52,8 +52,7 @@ def main():
     for diag, answers in zip(flagged, SCRIPTED_ANSWERS):
         asin = diag["parent_asin"]
         product = products[asin]
-        chat = MockBedrockChat()
-        session = ConciergeSession(chat, product, ontology, diag)
+        session = ConciergeSession(product, ontology, diag, provider="mock")
         event = session.start()
         for answer in answers:
             if event["type"] != "question":
@@ -67,7 +66,7 @@ def main():
             "diagnosis": event["data"],
             "transcript": session.transcript,
             "cost_usd": 0.0,
-            "model_id": chat.model_id,
+            "model_id": session.model_id,
         })
         print(f"seeded session for [{diag['priority']}] {rows[-1]['title'][:70]}")
 

@@ -25,11 +25,11 @@ if hasattr(sys.stdout, "reconfigure"):
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from src.concierge.concierge import ConciergeSession
-from src.concierge.provider import make_chat, provider_name
+from src.concierge.graph import ConciergeSession
+from src.concierge.portkey_llm import make_llm, provider_name
 from src.physics.fabric_ontology import FabricOntology
-from src.llmops.tracer import (RunTrace, TracingChat, save_trace, emit_langfuse,
-                               langfuse_enabled)
+from src.llmops.tracer import (RunTrace, TracingCallbackHandler, save_trace,
+                               emit_langfuse, langfuse_enabled)
 from src.llmops.observe import health
 from src.llmops.evaluate import evaluate
 from src.llmops.diagnose import diagnose
@@ -77,15 +77,16 @@ def pick_product(products, diags):
     return flagged[0]["parent_asin"]
 
 
-def run_one(scenario, expected, answers, product, diag, ontology, is_mock, judge_chat):
+def run_one(scenario, expected, answers, product, diag, ontology, is_mock, judge_llm):
     trace = RunTrace(scenario=scenario, parent_asin=product["parent_asin"],
                      title=(product.get("title") or "")[:80], provider=provider_name(),
                      expected_case=None if is_mock else expected)
-    chat = TracingChat(make_chat(), trace)
-    session = ConciergeSession(chat, product, ontology, diag)
+    callback = TracingCallbackHandler(trace)
     converged = False
     run_error = None
     try:
+        session = ConciergeSession(product, ontology, diag, callbacks=[callback])
+        trace.model_id = session.model_id
         event = session.start()
         for ans in answers:
             if event["type"] != "question":
@@ -95,16 +96,20 @@ def run_one(scenario, expected, answers, product, diag, ontology, is_mock, judge
         dx = event["data"] if converged else {}
     except Exception as e:
         dx = {}
+        session = None
         run_error = f"{type(e).__name__}: {str(e)[:140]}"
         print(f"    [{scenario}] run error: {run_error[:100]}")
 
-    td = trace.finish(diagnosis=dx, transcript=session.transcript,
-                      transport=session.mode, questions=session.questions_asked,
-                      cost_usd=chat.meter.usd, converged=converged, error=run_error)
+    td = trace.finish(
+        diagnosis=dx,
+        transcript=session.transcript if session else [],
+        transport=session.mode if session else "langgraph",
+        questions=session.questions_asked if session else 0,
+        cost_usd=callback.usd, converged=converged, error=run_error)
     save_trace(td)
 
     h = health(td)
-    ev = evaluate(td, judge_chat=judge_chat)
+    ev = evaluate(td, judge_chat=judge_llm)
     dg = diagnose(td, h, ev)
     url = emit_langfuse(td, ev)   # mirror to Langfuse Cloud (no-op if unconfigured)
     return {"scenario": scenario, "run_id": td["run_id"], "model_id": td["model_id"],
@@ -125,7 +130,8 @@ def main():
     asin = pick_product(products, diags)
     product, diag = products[asin], diags.get(asin)
     ontology = FabricOntology()
-    judge_chat = make_chat() if (args.judge and not is_mock) else None
+    # For judge mode, create a separate LLM (not the mock)
+    judge_llm = make_llm() if (args.judge and not is_mock) else None
 
     lf_status = "Langfuse Cloud ✓" if langfuse_enabled() else "local JSONL only (set LANGFUSE_* for Langfuse)"
     print(f"LLM Ops loop · provider={provider_name()} · tracing: {lf_status}")
@@ -134,7 +140,7 @@ def main():
 
     reports = []
     for scenario, expected, answers in SCENARIOS:
-        r = run_one(scenario, expected, answers, product, diag, ontology, is_mock, judge_chat)
+        r = run_one(scenario, expected, answers, product, diag, ontology, is_mock, judge_llm)
         ev, h = r["eval"], r["health"]
         flag = "PASS" if (ev["passed"] and h["healthy"]) else "FAIL"
         judge = r["eval"].get("judge")

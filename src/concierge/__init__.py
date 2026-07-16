@@ -1,1 +1,1 @@
-"""Phase 4: Bedrock-powered returns concierge (Converse API + Claude Haiku 4.5)."""
+"""Phase 4: LangGraph-powered returns concierge via Portkey AI gateway."""

@@ -1,4 +1,4 @@
-"""Verify the ACTIVE LLM provider (per src/concierge/provider.py) with one tiny
+"""Verify the ACTIVE LLM provider (per src/concierge/portkey_llm.py) with one tiny
 call, plus a native tool-use probe.
 
     uv run python scripts/check_llm.py
@@ -13,47 +13,46 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from src.concierge.provider import make_chat, provider_name
+from langchain_core.messages import HumanMessage, SystemMessage
+
+from src.concierge.portkey_llm import make_llm, provider_name
 
 
 def main():
     print(f"[..] Active provider: {provider_name()}")
     try:
-        chat = make_chat()
+        llm = make_llm()
     except RuntimeError as e:
         sys.exit(f"[fail] {e}")
 
-    print(f"[..] Pinging {chat.model_id} via {chat.region} ...")
+    model_id = getattr(llm, "model_name", getattr(llm, "model_id", "unknown"))
+    print(f"[..] Pinging {model_id} via Portkey ...")
     try:
-        resp = chat.converse(
-            system="Reply with exactly: OK",
-            messages=[{"role": "user", "content": [{"text": "ping"}]}],
-            max_tokens=128, temperature=0.0)
-        text = " ".join(b.get("text", "") for b in
-                        resp["output"]["message"]["content"]).strip()
-        print(f"[ok] Model replied: {text!r}")
+        msg = llm.invoke([
+            SystemMessage(content="Reply with exactly: OK"),
+            HumanMessage(content="ping")
+        ])
+        print(f"[ok] Model replied: {msg.content!r}")
     except Exception as e:
         sys.exit(f"[fail] {e.__class__.__name__}: {e}")
 
+    print("[..] Testing tool use ...")
     try:
-        chat.converse(
-            system="Call the ping tool.",
-            messages=[{"role": "user", "content": [{"text": "ping"}]}],
-            tool_config={"tools": [{"toolSpec": {
-                "name": "ping", "description": "connectivity test",
-                "inputSchema": {"json": {"type": "object", "properties": {}}}}}],
-                "toolChoice": {"any": {}}},
-            max_tokens=300)
-        print("[ok] Native tool use supported — concierge will force tool calls")
+        def ping() -> str:
+            """connectivity test"""
+            return "pong"
+
+        llm_with_tools = llm.bind_tools([ping], tool_choice="required")
+        msg = llm_with_tools.invoke([SystemMessage(content="Call the ping tool."), HumanMessage(content="ping")])
+
+        if hasattr(msg, "tool_calls") and msg.tool_calls:
+            print("[ok] Native tool use supported — concierge will use tools seamlessly")
+        else:
+            print("[warn] Native tool use rejected (no tool call returned)")
     except Exception as e:
         print(f"[warn] Native tool use rejected ({e.__class__.__name__}: {e})")
-        print("       Concierge will automatically use its JSON-protocol fallback.")
 
-    free_tier = {"google-ai-studio": " (AI Studio free tier bills $0)",
-                 "groq-cloud": " (Groq free tier bills $0)"}
-    print(f"\nTotal cost of this check: {chat.meter.summary()}"
-          + free_tier.get(chat.region, ""))
-    print("All good — run: uv run python scripts/run_concierge.py")
+    print("\nAll good — run: uv run python scripts/run_concierge.py")
 
 
 if __name__ == "__main__":

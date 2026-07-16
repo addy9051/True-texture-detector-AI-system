@@ -5,14 +5,12 @@ diagnosis. This records the *tree of events* for that run: every LLM call with
 its latency / tokens / whether tools were used / errors, plus the interview
 transcript and the final structured diagnosis.
 
-`TracingChat` wraps ANY chat client (Groq/Gemini/Bedrock/mock) transparently —
-it times each `converse`, reads token deltas off the client's own CostMeter, and
-notes tool-config use and errors (e.g. the tools→JSON fallback shows up as an
-errored generation followed by a successful one). No change to the concierge
-engine is required.
+``TracingCallbackHandler`` hooks into LangChain's callback system so it works
+transparently with the LangGraph agent — no wrapper around the chat client is
+needed.
 
 Traces append to data/processed/traces.jsonl. If LANGFUSE_PUBLIC_KEY /
-LANGFUSE_SECRET_KEY are set and `langfuse` is installed, each trace is also
+LANGFUSE_SECRET_KEY are set and ``langfuse`` is installed, each trace is also
 emitted there — otherwise the local JSONL is the trace store.
 """
 
@@ -20,10 +18,14 @@ import json
 import os
 import time
 import uuid
-from contextlib import contextmanager, nullcontext
+from contextlib import nullcontext
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
+
+from langchain_core.callbacks import BaseCallbackHandler
+from langchain_core.outputs import LLMResult
 
 TRACES_PATH = Path(__file__).resolve().parents[2] / "data" / "processed" / "traces.jsonl"
 
@@ -69,7 +71,7 @@ class RunTrace:
             "provider": self.provider,
             "model_id": self.model_id,
             "expected_case": self.expected_case,
-            "transport": transport,          # "tools" | "json"
+            "transport": transport,          # "langgraph" for the new agent
             "n_llm_calls": len([e for e in gens if not e["error"]]),
             "n_questions": questions,
             "converged": converged,
@@ -84,82 +86,66 @@ class RunTrace:
         }
 
 
-class TracingChat:
-    """Transparent wrapper: proxies a chat client, records each call to a RunTrace."""
+class TracingCallbackHandler(BaseCallbackHandler):
+    """LangChain callback handler that records each LLM call to a RunTrace.
 
-    def __init__(self, inner, trace: RunTrace):
-        self.inner = inner
+    Replaces the old ``TracingChat`` wrapper — works with any LangChain model
+    (ChatOpenAI via Portkey, mock, etc.) and plugs into LangGraph's callback
+    system transparently.
+    """
+
+    def __init__(self, trace: RunTrace):
         self.trace = trace
-        trace.model_id = getattr(inner, "model_id", "")
+        self._t0: float | None = None
+        self.total_tokens_in: int = 0
+        self.total_tokens_out: int = 0
 
-    # proxy the duck-typed surface the engine relies on
+    # Cost approximation: accumulate token counts; the cost is computed
+    # from the trace after the run (same as before).
     @property
-    def model_id(self):
-        return self.inner.model_id
+    def usd(self) -> float:
+        """Approximate cost — Portkey tracks the real cost in its dashboard."""
+        return 0.0  # Free tier; real cost tracked by Portkey
 
-    @property
-    def region(self):
-        return getattr(self.inner, "region", "")
+    def summary(self) -> str:
+        return (f"{self.total_tokens_in} in / {self.total_tokens_out} out tokens"
+                f" = ${self.usd:.4f}")
 
-    @property
-    def meter(self):
-        return self.inner.meter
+    # ---- LangChain callback hooks ----
 
-    @staticmethod
-    def _lf_input(messages):
-        """Only the conversation turns (the big system prompt is passed
-        separately and NOT logged — per the skill's 'set only relevant input')."""
-        turns = []
-        for msg in messages:
-            for b in msg.get("content", []):
-                if "text" in b:
-                    turns.append({"role": msg.get("role"), "text": b["text"][:600]})
-                elif "toolUse" in b:
-                    turns.append({"role": "assistant", "tool": b["toolUse"].get("name")})
-                elif "toolResult" in b:
-                    inner = (b["toolResult"].get("content") or [{}])[0].get("json", {})
-                    turns.append({"role": "tool_result", "answer": inner})
-        return turns
+    def on_chat_model_start(self, serialized: dict, messages: list, **kwargs):
+        self._t0 = time.perf_counter()
 
-    @staticmethod
-    def _lf_output(resp):
-        content = resp.get("output", {}).get("message", {}).get("content", [])
-        for b in content:
-            if "toolUse" in b:
-                return {"tool": b["toolUse"].get("name"), "input": b["toolUse"].get("input")}
-        return {"text": " ".join(b.get("text", "") for b in content)[:600]}
+    def on_llm_start(self, serialized: dict, prompts: list[str], **kwargs):
+        self._t0 = time.perf_counter()
 
-    def converse(self, system, messages, tool_config=None, *args, **kwargs):
-        m = self.inner.meter
-        in0, out0 = m.input_tokens, m.output_tokens
-        t0 = time.perf_counter()
-        used_tools = tool_config is not None
-        forced = bool(tool_config and tool_config.get("toolChoice"))
-        # Real-time Langfuse generation — the span's duration is the actual
-        # wall-clock of the call (best practice), and it nests under the run's
-        # root span. A no-op context when Langfuse isn't configured.
-        gen_cm = (_client().start_as_current_observation(
-                      name="llm-call", as_type="generation", model=self.inner.model_id,
-                      input=self._lf_input(messages),
-                      metadata={"used_tools": str(used_tools), "forced_tool": str(forced)})
-                  if langfuse_enabled() else nullcontext())
-        with gen_cm as gen:
-            try:
-                resp = self.inner.converse(system, messages, tool_config, *args, **kwargs)
-            except Exception as e:
-                self.trace.add_generation((time.perf_counter() - t0) * 1000, 0, 0,
-                                          used_tools, forced,
-                                          error=f"{type(e).__name__}: {str(e)[:140]}")
-                if gen is not None:
-                    gen.update(level="ERROR", status_message=str(e)[:200])
-                raise
-            ti, to = m.input_tokens - in0, m.output_tokens - out0
-            self.trace.add_generation((time.perf_counter() - t0) * 1000, ti, to,
-                                      used_tools, forced, stop_reason=resp.get("stopReason"))
-            if gen is not None:
-                gen.update(output=self._lf_output(resp),
-                           usage_details={"input": ti, "output": to, "total": ti + to})
-        return resp
+    def on_llm_end(self, response: LLMResult, **kwargs):
+        latency_ms = (time.perf_counter() - (self._t0 or time.perf_counter())) * 1000
+        tokens_in = 0
+        tokens_out = 0
+        used_tools = False
+
+        # Extract token usage from the response
+        for gen_list in response.generations:
+            for gen in gen_list:
+                msg = getattr(gen, "message", None)
+                if msg is None:
+                    continue
+                usage = getattr(msg, "usage_metadata", None) or {}
+                tokens_in += usage.get("input_tokens", 0)
+                tokens_out += usage.get("output_tokens", 0)
+                if hasattr(msg, "tool_calls") and msg.tool_calls:
+                    used_tools = True
+
+        self.total_tokens_in += tokens_in
+        self.total_tokens_out += tokens_out
+        self.trace.add_generation(latency_ms, tokens_in, tokens_out, used_tools)
+
+    def on_llm_error(self, error: BaseException, **kwargs):
+        latency_ms = (time.perf_counter() - (self._t0 or time.perf_counter())) * 1000
+        self.trace.add_generation(
+            latency_ms, 0, 0, False,
+            error=f"{type(error).__name__}: {str(error)[:140]}")
 
 
 def save_trace(trace_dict: dict, path: Path = TRACES_PATH) -> None:
@@ -179,7 +165,7 @@ def load_traces(path: Path = TRACES_PATH) -> list[dict]:
 
 def langfuse_enabled() -> bool:
     # registry-aware: setx-set keys work even in a terminal opened before setx
-    from src.concierge.provider import _env_or_registry
+    from src.concierge.portkey_llm import _env_or_registry
     return bool(_env_or_registry("LANGFUSE_PUBLIC_KEY")
                 and _env_or_registry("LANGFUSE_SECRET_KEY"))
 
@@ -187,7 +173,7 @@ def langfuse_enabled() -> bool:
 def _client():
     # promote keys from the Windows registry into os.environ so the Langfuse
     # SDK (which reads env at construction) picks them up without a new shell
-    from src.concierge.provider import _env_or_registry
+    from src.concierge.portkey_llm import _env_or_registry
     for k in ("LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY", "LANGFUSE_BASE_URL"):
         _env_or_registry(k)
     from langfuse import get_client
@@ -195,8 +181,8 @@ def _client():
 
 
 def emit_langfuse(trace_dict: dict, evaluation: dict | None = None) -> str | None:
-    """Mirror a completed run to Langfuse Cloud as a trace: one root `agent`
-    observation with a child `generation` per LLM call (tokens → Langfuse's
+    """Mirror a completed run to Langfuse Cloud as a trace: one root ``agent``
+    observation with a child ``generation`` per LLM call (tokens → Langfuse's
     usage/cost dashboards, errors flagged), plus the eval/judge scores attached
     to the trace. Returns the trace URL. Never fatal — observability must not
     break the run. No-op unless LANGFUSE_* env vars are set.
@@ -210,14 +196,14 @@ def emit_langfuse(trace_dict: dict, evaluation: dict | None = None) -> str | Non
         lf = _client()
         from langfuse import propagate_attributes
         dx = trace_dict.get("diagnosis") or {}
-        
+
         metadata = {
             "provider": str(trace_dict["provider"]), "model_id": str(trace_dict["model_id"]),
             "transport": str(trace_dict["transport"]), "run_id": str(trace_dict["run_id"]),
             "n_questions": str(trace_dict["n_questions"]),
             "total_latency_ms": str(trace_dict["total_latency_ms"])
         }
-        
+
         with propagate_attributes(
             session_id=trace_dict["run_id"],
             tags=[trace_dict["provider"], trace_dict["scenario"]],

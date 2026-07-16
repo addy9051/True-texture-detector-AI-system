@@ -1,7 +1,7 @@
 """Interactive Returns Concierge demo (terminal chat).
 
 Simulates a customer returning one of the sampled products. The concierge asks
-1-2 adaptive questions (options are derived from the fabric ontology + steered
+1-3 adaptive questions (options are derived from the fabric ontology + steered
 by Phase-2 evidence), then emits the structured diagnosis that would flow to
 the seller dashboard.
 
@@ -26,7 +26,8 @@ if hasattr(sys.stdout, "reconfigure"):
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from src.concierge.concierge import ConciergeSession
+from src.concierge.graph import ConciergeSession
+from src.concierge.portkey_llm import provider_name
 from src.physics.fabric_ontology import FabricOntology
 
 RAW = ROOT / "data" / "raw"
@@ -59,7 +60,7 @@ def main():
     parser.add_argument("--list", action="store_true")
     parser.add_argument("--mock", action="store_true",
                         help="Offline canned model — exercises the full pipeline "
-                             "without AWS (responses are scripted, not AI)")
+                             "without any cloud calls (responses are scripted, not AI)")
     args = parser.parse_args()
 
     products = {p["parent_asin"]: p for p in read_jsonl(RAW / "products.jsonl")}
@@ -83,16 +84,14 @@ def main():
           f"{diagnosis_row['priority'] if diagnosis_row else 'n/a'}")
     print("=" * 72)
 
-    if args.mock:
-        import os
-        os.environ["LLM_PROVIDER"] = "mock"
-    from src.concierge.provider import make_chat
-    chat = make_chat()
-    if "mock" in chat.model_id:
+    provider = "mock" if args.mock else None
+    session = ConciergeSession(product, FabricOntology(), diagnosis_row,
+                               provider=provider)
+    if provider == "mock":
         print("(MOCK MODE — scripted responses, no cloud call is made)")
     else:
-        print(f"(model: {chat.model_id} via {chat.region})")
-    session = ConciergeSession(chat, product, FabricOntology(), diagnosis_row)
+        print(f"(provider: {provider_name()} via Portkey AI gateway)")
+
     event = session.start()
 
     while event["type"] == "question":
@@ -113,7 +112,7 @@ def main():
     print("\n" + "=" * 72)
     print("STRUCTURED DIAGNOSIS (what the seller dashboard receives)")
     print(json.dumps(dx, indent=2, ensure_ascii=False))
-    print(f"\nSession cost: {chat.meter.summary()}")
+    print(f"\nModel: {session.model_id} | Questions: {session.questions_asked}")
 
     from src.concierge.insights_store import save_session, DB_PATH
     save_session({
@@ -122,8 +121,8 @@ def main():
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "diagnosis": dx,
         "transcript": session.transcript,
-        "cost_usd": round(chat.meter.usd, 6),
-        "model_id": chat.model_id,
+        "cost_usd": 0.0,
+        "model_id": session.model_id,
     })
     print(f"Saved to {DB_PATH}")
 

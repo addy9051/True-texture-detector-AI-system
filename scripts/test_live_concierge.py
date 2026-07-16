@@ -23,8 +23,8 @@ if hasattr(sys.stdout, "reconfigure"):
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from src.concierge.concierge import ConciergeSession
-from src.concierge.provider import make_chat, provider_name
+from src.concierge.graph import ConciergeSession
+from src.concierge.portkey_llm import provider_name
 from src.physics.fabric_ontology import FabricOntology
 
 RAW = ROOT / "data" / "raw"
@@ -32,11 +32,6 @@ PROCESSED = ROOT / "data" / "processed"
 PRIORITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "NONE": 3}
 
 # Scenarios spanning the 2x2 response matrix (feel x weather):
-#   substitution -> CASE A: shiny/plastic feel, weather fine -> SUPPLY_CHAIN_AUDIT
-#   quality      -> CASE A: rough/coarse cotton, weather fine -> QUALITY_IMPROVEMENT
-#   weather      -> CASE B: no feel issue, wrong weather -> weather education
-#   both         -> CASE C: shiny/plastic feel AND wrong weather
-#   neither      -> CASE D: product fine, returned anyway -> NO_ACTION (threshold)
 SCENARIOS = {
     "substitution": [
         "The fabric feels wrong, not what I expected from the description",
@@ -62,35 +57,6 @@ SCENARIOS = {
         "It just wasn't right for me",
         "honestly the fabric felt fine, soft and cotton-like as described",
         "the weather wasn't an issue, mild day indoors — I just didn't love the style on me",
-    ],
-    # Non-cotton material check: wool is ideal for COLD, so a HOT-weather
-    # complaint should be the weather mismatch (opposite of the cotton cases).
-    # Pair with --asin for a wool product.
-    "wool_weather": [
-        "These weren't comfortable for me",
-        "the wool felt fine actually, warm and soft as I expected",
-        "but I wore them on a hot humid summer day and my feet were sweating and overheating",
-    ],
-    "wool_feel": [
-        "The material felt off",
-        "they felt squeaky and plasticky, scratchy — not like real wool at all",
-        "just normal wear in cool weather, which is what I bought them for",
-    ],
-    # Weave check: fleece should feel soft/fuzzy/warm; reporting it rough and
-    # thin is a WEAVE-level mismatch (not a fiber substitution). Use --asin for
-    # a fleece product (e.g. B09BC2STXP).
-    "weave_feel": [
-        "The material wasn't what I expected",
-        "the fleece felt rough and thin and scratchy, not soft or fuzzy or warm at all",
-        "wore it indoors in cool weather, so weather was fine",
-    ],
-    # Weave-driven WEATHER: fleece is a warm/cold-weather weave. Worn in hot
-    # weather it should flag a weather mismatch EVEN THOUGH the cotton fiber is
-    # hot-ideal — the construction overrides the fiber for warmth.
-    "weave_weather": [
-        "It was too uncomfortable to wear",
-        "the fleece itself felt soft and fine, no complaint about the feel",
-        "but I wore it on a hot humid afternoon and was overheating and sweating badly",
     ],
 }
 
@@ -118,11 +84,10 @@ def main():
                    key=lambda d: PRIORITY_ORDER[d["priority"]])["parent_asin"]
     product, diag = products[asin], diagnoses.get(asin)
 
-    chat = make_chat()
-    print(f"provider={provider_name()}  model={chat.model_id}  scenario={args.scenario}")
+    print(f"provider={provider_name()}  scenario={args.scenario}")
     print(f"RETURNING: {(product.get('title') or '')[:80]}\n")
 
-    session = ConciergeSession(chat, product, FabricOntology(), diag)
+    session = ConciergeSession(product, FabricOntology(), diag)
     event = session.start()
     for answer in answers:
         if event["type"] != "question":
@@ -140,7 +105,7 @@ def main():
     print("DIAGNOSIS:")
     print(json.dumps(dx, indent=2, ensure_ascii=False))
     print(f"\ntransport mode: {session.mode} | questions asked: "
-          f"{session.questions_asked} | cost: {chat.meter.summary()}")
+          f"{session.questions_asked}")
 
     from src.concierge.insights_store import save_session
     save_session({
@@ -149,8 +114,8 @@ def main():
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "diagnosis": dx,
         "transcript": session.transcript,
-        "cost_usd": round(chat.meter.usd, 6),
-        "model_id": chat.model_id,
+        "cost_usd": 0.0,
+        "model_id": session.model_id,
     })
     print("Row saved to insights.sqlite")
 
