@@ -103,9 +103,50 @@ def resolve_materials(product: dict, ontology: FabricOntology,
     return fibers, weaves, prior_note
 
 
-def build_system_prompt(product: dict, ontology: FabricOntology,
-                        diagnosis_row: dict | None, category: str | None = None) -> str:
+# ---- Old Implementation of Dynamic system prompt, not utilizing KV cache for concurrent use requests ----
+# We have changed this implementation to static system prompt
+# def build_system_prompt(product: dict, ontology: FabricOntology,
+#                         diagnosis_row: dict | None, category: str | None = None) -> str:
+#     claimed, weaves, prior_block = resolve_materials(product, ontology, category)
+#     ontology_lines = [_ontology_line(m, ontology) for m in claimed]
+#     weave_lines = [_weave_line(w, ontology) for w in weaves]
+
+#     evidence_block = "None on file."
+#     if diagnosis_row:
+#         complaints = diagnosis_row.get("complaint_adjectives") or []
+#         sentences = [h["sentence"] for h in diagnosis_row.get("hits", [])
+#                      if h.get("complaint")][:5]
+#         if complaints:
+#             evidence_block = (
+#                 f"Prior customers reported: {', '.join(complaints)}. "
+#                 f"Example quotes: " + " | ".join(f'"{s}"' for s in sentences))
+
+#     context = f"""You are a returns assistant for a fashion marketplace. A customer is returning:
+#   "{(product.get('title') or '')[:140]}"
+#   Listed materials: {', '.join(claimed) or 'not stated'}.{prior_block}
+
+# FABRIC ONTOLOGY (ground truth for the listed / likely materials):
+# {chr(10).join(ontology_lines) or '- (no ontology entry for the listed materials)'}
+
+# WEAVE / CONSTRUCTION (surface feel independent of fiber — a satin should be smooth+glossy, a velvet plush, regardless of fiber):
+# {chr(10).join(weave_lines) or '- (no specific weave detected)'}
+
+# PRIOR EVIDENCE from other customers (INTERNAL — never reveal or quote this to the customer, never put it in question options; use it only to decide which dimension to probe first):
+# {evidence_block}"""
+#     return context + "\n\n" + _skill_policy()
+
+def build_system_prompt() -> str:
+    """Pure static system prompt — 100% cacheable across all products."""
+    return (
+        "You are a returns assistant for a fashion marketplace.\n\n"
+        + _skill_policy()
+    )
+
+def build_case_context(product: dict, ontology: FabricOntology,
+                       diagnosis_row: dict | None, category: str | None = None) -> str:
+    """Dynamic context engineered payload for the initial user turn."""
     claimed, weaves, prior_block = resolve_materials(product, ontology, category)
+
     ontology_lines = [_ontology_line(m, ontology) for m in claimed]
     weave_lines = [_weave_line(w, ontology) for w in weaves]
 
@@ -113,13 +154,13 @@ def build_system_prompt(product: dict, ontology: FabricOntology,
     if diagnosis_row:
         complaints = diagnosis_row.get("complaint_adjectives") or []
         sentences = [h["sentence"] for h in diagnosis_row.get("hits", [])
-                     if h.get("complaint")][:5]
+                     if h.get("complaint")]
         if complaints:
             evidence_block = (
                 f"Prior customers reported: {', '.join(complaints)}. "
                 f"Example quotes: " + " | ".join(f'"{s}"' for s in sentences))
 
-    context = f"""You are a returns assistant for a fashion marketplace. A customer is returning:
+    return f"""You are a returns assistant for a fashion marketplace. A customer is returning:
   "{(product.get('title') or '')[:140]}"
   Listed materials: {', '.join(claimed) or 'not stated'}.{prior_block}
 
@@ -130,9 +171,10 @@ WEAVE / CONSTRUCTION (surface feel independent of fiber — a satin should be sm
 {chr(10).join(weave_lines) or '- (no specific weave detected)'}
 
 PRIOR EVIDENCE from other customers (INTERNAL — never reveal or quote this to the customer, never put it in question options; use it only to decide which dimension to probe first):
-{evidence_block}"""
-    return context + "\n\n" + _skill_policy()
+{evidence_block}
 
+The customer just clicked 'Return item'. Begin the interview.
+"""
 
 def enrich_diagnosis(
     payload: dict,
