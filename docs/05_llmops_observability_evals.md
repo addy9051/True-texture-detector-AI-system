@@ -6,24 +6,19 @@ To prevent model regressions, prompt drift, and silent failures in production, T
 
 ```mermaid
 flowchart LR
-    subgraph Observability
-        A[Agent Session] --> B[TracingCallbackHandler <br/> src/llmops/tracer.py]
-        B --> C[(Local traces.jsonl)]
-        B --> D[(Langfuse Platform)]
-    end
-
-    subgraph Evaluation Harness
-        E[Golden Scenarios <br/> 8 Multi-Quadrant Cases] --> F[Eval Runner <br/> src/llmops/evaluate.py]
-        F --> G[Multi-Metric Scoring <br/> Converged / Case Match / Latency]
-    end
-
-    subgraph Gating & Release
-        G --> H[Automated Gate <br/> src/llmops/gate.py]
-        H -- Pass >= 0.875 --> I[Record Release <br/> data/processed/releases.json]
-        H -- Fail --> J[Diagnostic Root-Causer <br/> src/llmops/diagnose.py]
-        I --> K[Promote Config/Prompt <br/> src/llmops/config.py]
-    end
+    A[Agent Session] --> B[Telemetry Tracer]
+    B --> C[Trace Sinks <br/> Langfuse & JSONL]
+    D[Golden Benchmark] --> E[Evaluation Harness]
+    E --> F[Automated Release Gate]
+    F --> G[Promoted Release]
 ```
+
+#### LLMOps Loop Components
+* **Telemetry Tracer**: `TracingCallbackHandler` hooks into LangGraph invocations to log generation events, token counts, and tool calls.
+* **Trace Sinks**: Dual telemetry destinations (OpenTelemetry stream to Langfuse Cloud + local append-only `traces.jsonl`).
+* **Golden Benchmark**: 8 grounded scenarios covering all quadrants of the 2×2 response matrix.
+* **Evaluation Harness**: Multi-dimensional scoring evaluating convergence, case classification, and red-flag extraction.
+* **Automated Release Gate**: Evaluates candidate prompts/models against a $\ge 87.5\%$ threshold before promoting to `releases.json`.
 
 ---
 
@@ -36,13 +31,6 @@ Every interaction through the Returns Concierge is instrumented as a hierarchica
 * **Dual-Sink Exporter**:
   * **Local Offline**: Appends structured JSON lines to [`data/processed/traces.jsonl`](file:///d:/Downloads/projects/True-texture%20detector%20AI%20system/data/processed/traces.jsonl).
   * **Cloud OpenTelemetry**: When `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` are provided in `.env`, traces stream in real-time to the **Langfuse** platform for centralized dashboarding and latency analysis.
-
-```python
-class TracingCallbackHandler(BaseCallbackHandler):
-    """Hooks into LangChain/LangGraph callback pipeline."""
-    def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
-        # Calculates latency, token usage, tool calls, and records generation event
-```
 
 ---
 
@@ -68,7 +56,7 @@ Evaluating conversational agents with unstructured outputs requires a determinis
 For each scenario run, the evaluation harness calculates:
 
 1. **Convergence Rate ($\mathcal{M}_{\text{conv}}$)**: Did the agent finalize the interview within $\le 3$ questions and emit a valid `SubmitDiagnosisInput` payload?
-2. **Case Classification Accuracy ($\mathcal{M}_{\text{case}}$)**: Did the computed `case_class` match the ground truth quadrant (`CASE_FEEL_ONLY`, `CASE_WEATHER_ONLY`, `CASE_FEEL_AND_WEATHER`, `CASE_NO_ISSUE`)?
+2. **Case Classification Accuracy ($\mathcal{M}_{\text{case}}$)**: Did the computed `case_class` match the ground truth quadrant?
 3. **Red-Flag Extraction Precision ($\mathcal{M}_{\text{flag}}$)**: Did the diagnosis capture the specific tactile red flags (e.g. `["slick", "sweaty", "shiny"]`)?
 4. **Weather Mismatch Precision ($\mathcal{M}_{\text{weather}}$)**: Was `weather_suitability_mismatch` correctly identified?
 5. **Latency & Token Efficiency**: Average latency per turn ($< 1500\text{ms}$) and total cost per return ($< \$0.005$).
@@ -83,21 +71,14 @@ A release gate script prevents regressions from entering production:
 
 ```mermaid
 flowchart TD
-    A[Trigger Release Run: scripts/run_llmops.py] --> B[Execute Golden Benchmark on Candidate Model/Prompt]
-    B --> C[Compute Overall Pass Rate]
-    C --> D{Pass Rate >= 87.5% (7/8)?}
-    D -- Yes --> E[Compute SHA-256 Hash of skill.md]
-    E --> F[Record Blessed Release in data/processed/releases.json]
-    F --> G[Deploy to Production Concierge]
-    D -- No --> H[Raise Gate Failure Alert]
-    H --> I[Execute src/llmops/diagnose.py to pinpoint regression]
+    A[Candidate Config/Prompt] --> B[Run Golden Benchmark]
+    B --> C{Pass Rate >= 87.5%?}
+    C -- Yes --> D[Promote Release]
+    C -- No --> E[Trigger Diagnostic Root-Causer]
 ```
 
-### Prompt Version Hashing
-```python
-def prompt_version() -> str:
-    """Calculates SHA-256 hash of skill.md to track prompt lineage."""
-    text = _SKILL_PATH.read_text(encoding="utf-8") if _SKILL_PATH.exists() else ""
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:8]
-```
-Every record in SQLite and Langfuse is tagged with the exact `prompt_version` hash, enabling root-cause regression debugging across prompt revisions.
+#### Release Gate Stages
+1. **Benchmark Execution**: `scripts/run_llmops.py` runs all 8 golden cases against the candidate model and `skill.md`.
+2. **Threshold Verification**: Requires $\ge 7/8$ ($87.5\%$) pass rate across all evaluated dimensions.
+3. **Version Promotion**: Computes the SHA-256 hash of `skill.md` and appends the blessed configuration to `releases.json`.
+4. **Regression Diagnosis**: If the gate fails, `src/llmops/diagnose.py` isolates whether the regression was caused by prompt drift, tool binding issues, or classification errors.

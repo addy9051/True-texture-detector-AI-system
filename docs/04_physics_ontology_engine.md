@@ -7,36 +7,16 @@ Human tactile and thermal experience in clothing is governed by **two independen
 2. **Weave & Construction (How it's made)**: Determines physical surface structure (smooth, ribbed, crinkled, sheer) and thermal air-trapping (pile, brushed, open knit).
 
 ```mermaid
-classDiagram
-    class FabricOntology {
-        +dict materials (Fibers)
-        +dict weaves (Constructions)
-        +materials_from_listing(product)
-        +weaves_from_listing(product)
-        +expectations(material)
-        +weave_expectations(weave)
-    }
-
-    class FiberSpec {
-        +list expected_texture
-        +list failing_adjectives
-        +str thermal
-        +list weather_suitability
-        +list substitution_suspects
-        +list substitution_signature
-    }
-
-    class WeaveSpec {
-        +list expected_texture
-        +list failing_adjectives
-        +str structure
-        +str warmth
-        +list weather_suitability
-    }
-
-    FabricOntology *-- FiberSpec : materials axis
-    FabricOntology *-- WeaveSpec : weaves axis
+graph LR
+    A[Fabric Experience] --> B[1. Fiber Axis <br/> Chemical Composition]
+    A --> C[2. Weave Axis <br/> Surface & Construction]
+    B --> D[Substitution & Breathability]
+    C --> E[Tactile Feel & Thermal Trap]
 ```
+
+#### Dual-Axis Architecture Highlights
+* **Fiber Axis**: Governs raw material integrity (e.g., Cotton vs Polyester), breathability profile, and synthetic substitution signatures.
+* **Weave Axis**: Governs physical surface feel (e.g., corduroy ribs, satin luster) and thermal air insulation (e.g., fleece pile). Construction properties can override raw fiber thermal profiles for warmth.
 
 ---
 
@@ -72,7 +52,7 @@ Governs surface tactile mechanics and thermal construction overrides:
 ```
 
 > [!IMPORTANT]
-> **Construction Dominates Warmth**: As noted in the ontology specification, raised pile weaves (corduroy, fleece, velvet) trap dead air and create warmth for cold weather even when made from breathable fibers like cotton. Open weaves (mesh, net, organza) ventilate for hot weather. The weather suitability of the weave combines with and overrides the fiber's default.
+> **Construction Dominates Warmth**: Raised pile weaves (corduroy, fleece, velvet) trap dead air and create warmth for cold weather even when made from breathable fibers like cotton. Open weaves (mesh, net, organza) ventilate for hot weather. The weather suitability of the weave combines with and overrides the fiber's default.
 
 ---
 
@@ -84,17 +64,16 @@ To solve this cold-start problem, the system employs **Category Priors** ([`data
 
 ```mermaid
 flowchart LR
-    A[Product Listing with Missing Fiber] --> B[Identify Category <br/> e.g. 'Men's Trousers']
-    B --> C[Fetch Priors via likely_materials <br/> ['cotton', 'poly-cotton', 'linen', 'corduroy']]
-    C --> D[normalize_to_ontology]
-    D --> E[Fibers: 'cotton', 'polyester', 'linen']
-    D --> F[Weaves: 'corduroy']
-    E --> G[Inject as Probable Material Expectations]
-    F --> G
+    A[Listing Missing Fiber] --> B[Category Prior Lookup]
+    B --> C[Ontology Normalizer]
+    C --> D[Resolved Fiber Priors]
+    C --> E[Resolved Weave Priors]
 ```
 
-* `likely_materials(category, department)`: Queries catalog priors for the category.
-* `normalize_to_ontology(material)`: Maps blended strings (e.g. `"poly-cotton"`, `"art silk"`, `"chambray"`, `"corduroy"`) into their canonical fiber keys in the ontology.
+#### Prior Resolution Steps
+1. **Category Prior Lookup**: `likely_materials(category, department)` fetches common catalog materials for the item's taxonomy.
+2. **Ontology Normalizer**: `normalize_to_ontology(material)` maps catalog blend tokens (e.g. `"poly-cotton"`, `"art silk"`, `"corduroy"`) into canonical ontology keys.
+3. **Dual Injection**: Feeds both probable underlying fibers and detected weaves into the prompt context.
 
 ---
 
@@ -109,12 +88,12 @@ $$\text{Case Class} = f(\text{material\_issue\_suspected}, \text{weather\_suitab
 ```mermaid
 quadrantChart
     title The 2x2 Returns Diagnostic Matrix
-    x-axis "Weather Fine / Suitable" --> "Weather Mismatch (Wrong Weather)"
-    y-axis "No Fabric Defect" --> "Fabric Defect Confirmed"
-    quadrant-1 "CASE C: FEEL & WEATHER (Defect + Wrong Weather)"
-    quadrant-2 "CASE A: FEEL ONLY (Genuine Defect / Substitution)"
-    quadrant-3 "CASE D: NO ISSUE (Buyer Remorse / Size)"
-    quadrant-4 "CASE B: WEATHER ONLY (Thermal Misuse / Layering Advice)"
+    x-axis "Weather Suitable" --> "Weather Mismatch"
+    y-axis "No Fabric Defect" --> "Fabric Defect"
+    quadrant-1 "CASE C: Both Defect & Climate Mismatch"
+    quadrant-2 "CASE A: Genuine Defect / Substitution"
+    quadrant-3 "CASE D: No Defect / Buyer Remorse"
+    quadrant-4 "CASE B: Climate Misuse / Thermal"
 ```
 
 | Quadrant | Physical Reality | Customer Experience | Seller Action | Root Cause |

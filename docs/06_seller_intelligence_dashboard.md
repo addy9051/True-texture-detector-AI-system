@@ -6,26 +6,19 @@ The **Seller Intelligence Dashboard** ([`app.py`](file:///d:/Downloads/projects/
 
 ```mermaid
 flowchart TD
-    subgraph Data Sources (Local Data Store)
-        D1[(data/processed/diagnosis.jsonl <br/> Mined Review Diagnoses)] --> App
-        D2[(data/processed/texture_sentences.jsonl <br/> Semantic Evidence Pool)] --> App
-        D3[(data/processed/insights.sqlite <br/> Episodic Return Sessions)] --> App
-        D4[(data/processed/releases.json <br/> LLMOps Version History)] --> App
-    end
-
-    subgraph Streamlit Frontend Engine (app.py)
-        App[Streamlit Dashboard Engine] --> KPIs[Top-Line Metrics Bar]
-        App --> Tab1[Tab 1: Mismatch Shortlist & Evidence Drill-Down]
-        App --> Tab2[Tab 2: Concierge Return Insights & Transcripts]
-        App --> Tab3[Tab 3: LLMOps Benchmark & Release Tracking]
-    end
-
-    subgraph Seller Actions
-        Tab1 --> Act1[Generate Supply Chain Audit Ticket]
-        Tab1 --> Act2[Trigger Catalog Listing Fix]
-        Tab2 --> Act3[Customer Experience & Styling Review]
-    end
+    A[Processed Data Stores] --> B[Streamlit Dashboard Engine]
+    B --> C[Top-Line KPI Metrics]
+    B --> D[Tab 1: Mismatch Shortlist]
+    B --> E[Tab 2: Concierge Insights]
+    B --> F[Tab 3: LLMOps Tracking]
 ```
+
+#### Portal Subsystem Overview
+* **Processed Data Stores**: Pulls from `diagnosis.jsonl` (mined batch data), `texture_sentences.jsonl` (evidence quotes), `insights.sqlite` (episodic chat transcripts), and `releases.json` (model versions).
+* **Top-Line KPI Metrics**: Summarizes catalog volume, flagged items, extracted customer evidence sentences, and false-hit suppressions.
+* **Tab 1 (Mismatch Shortlist)**: Actionable table prioritized by risk level with product drill-down inspectors.
+* **Tab 2 (Concierge Insights)**: Multi-turn chat transcript viewer, case distribution charts, and seller tickets.
+* **Tab 3 (LLMOps Tracking)**: Benchmark regression history, latency metrics, and prompt hash lineage.
 
 ---
 
@@ -86,19 +79,15 @@ Displays the historical telemetry and regression gating history of the underlyin
 When an issue is identified, the system classifies it into one of three structured business actions ([`src/concierge/seller_escalation.py`](file:///d:/Downloads/projects/True-texture%20detector%20AI%20system/src/concierge/seller_escalation.py)):
 
 ```mermaid
-graph TD
-    A[Grounded Return Diagnosis] --> B{Root Cause & Signature}
-    
-    B -- "Synthetic Substitution Suspected" --> C[SUPPLY_CHAIN_AUDIT]
-    B -- "Low-grade Genuine Fiber / Weave Defect" --> D[QUALITY_IMPROVEMENT]
-    B -- "Seasonal / Weather Misunderstanding" --> E[LISTING_FIX]
-    B -- "Isolated Single Return / Size / Fit" --> F[NO_ACTION]
-
-    C --> G[Action: Issue supplier compliance notice & lab fiber test]
-    D --> H[Action: Switch to combed/long-staple yarn or higher GSM]
-    E --> I[Action: Update listing bullet points with ideal temperature range]
+graph LR
+    A[Grounded Return Diagnosis] --> B{Action Router}
+    B --> C[SUPPLY_CHAIN_AUDIT]
+    B --> D[QUALITY_IMPROVEMENT]
+    B --> E[LISTING_FIX]
+    B --> F[NO_ACTION]
 ```
 
+#### Remediation Action Specifications
 1. **`SUPPLY_CHAIN_AUDIT`**:
    * *Trigger*: Strong polyester or acrylic substitution signature found on natural fiber listing.
    * *Remedy*: Seller is notified to verify fiber batches with their textile mill or re-label the listing as poly-blend.
@@ -108,3 +97,6 @@ graph TD
 3. **`LISTING_FIX`**:
    * *Trigger*: Product is physically sound, but customer experienced thermal discomfort due to climate misuse.
    * *Remedy*: Automatically drafts listing bullet updates (e.g. *"Best suited for air-conditioned or mild 15°C–22°C weather"*).
+4. **`NO_ACTION`**:
+   * *Trigger*: Isolated single return for size/fit/buyer remorse.
+   * *Remedy*: Logged to baseline monitoring; escalates to account review only if return rate exceeds platform threshold.

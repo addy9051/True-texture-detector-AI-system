@@ -6,33 +6,31 @@ The offline analytical pipeline ingests real customer reviews and structured pro
 
 ```mermaid
 flowchart LR
-    A[Raw Dataset <br/> Amazon Apparel 2023] --> B[Sample & Clean <br/> src/ingest/download_dataset.py]
-    B --> C[Sentence Segmentation <br/> Tokenization & Normalization]
-    C --> D[Semantic Embedding <br/> MiniLM-L6-v2]
-    D --> E{Cosine Sim >= 0.50?}
-    E -- No --> F[Discard non-texture text]
-    E -- Yes --> G[Negation Filter <br/> src/diagnosis/negation.py]
-    G --> H[Fabric Mismatch Engine <br/> src/diagnosis/diagnose.py]
-    H --> I[(diagnosis.jsonl & texture_sentences.jsonl)]
+    A[Raw Dataset] --> B[Sentence Splitter]
+    B --> C[MiniLM-L6-v2 Embedder]
+    C --> D[Semantic Threshold Gate]
+    D --> E[Negation Filter]
+    E --> F[Mismatch Diagnosis Engine]
+    F --> G[(Evidence Pool)]
 ```
 
+#### Pipeline Stage Breakdown
+* **Raw Dataset**: Ingests Amazon Reviews 2023 (`McAuley-Lab/Amazon-Reviews-2023`) focusing on apparel metadata and reviews.
+* **Sentence Splitter**: Segments review blobs into clean, normalized sentence tokens.
+* **MiniLM-L6-v2 Embedder**: Projects sentences into 384-dimensional dense vectors using `sentence-transformers`.
+* **Semantic Threshold Gate**: Applies a calibrated cosine similarity threshold ($\ge 0.50$) against tactile seed prototypes.
+* **Negation Filter**: Discards false-positive praise sentences (e.g., *"not scratchy"*).
+* **Mismatch Diagnosis Engine**: Cross-references verified complaints with claimed materials in the ontology.
+* **Evidence Pool**: Stores structured outputs in `texture_sentences.jsonl` and `diagnosis.jsonl`.
+
 ---
 
-## 1. Dataset Ingestion (`src/ingest/download_dataset.py`)
-
-The pipeline pulls from the Amazon Reviews 2023 dataset (`McAuley-Lab/Amazon-Reviews-2023`), focusing on `raw_review_Clothing_Shoes_and_Jewelry` and matching metadata:
-* **Product Sampling**: Filters for items with valid metadata (title, category, bullet features, structured detail specifications like `"Fabric Type"` or `"Material"`).
-* **Review Collation**: Pairs every product (`parent_asin`) with its associated review texts, ratings, and customer feedback.
-* **Volume Scalability**: Supports sample sizes from 100 to 50,000+ items without memory explosion by streaming records directly to local JSONL files (`data/raw/`).
-
----
-
-## 2. Semantic Sentence Filtering (`src/nlp/semantic_filter.py`)
+## 1. Semantic Sentence Filtering (`src/nlp/semantic_filter.py`)
 
 Customer reviews are mostly filled with logistics complaints ("fast delivery"), sizing complaints ("runs small"), or aesthetic remarks ("nice color"). Extracting purely **tactile & texture** sentences requires a high-precision semantic filter.
 
 ### Vector Representation & Seed Prototypes
-Using `sentence-transformers/all-MiniLM-L6-v2` (384-dimensional embeddings), candidate sentences are compared against a curated set of **Fabric Tactile Prototype Anchors**:
+Candidate sentences are compared against a curated set of **Fabric Tactile Prototype Anchors**:
 
 ```python
 TEXTURE_SEEDS = [
@@ -51,64 +49,47 @@ For each sentence $s$ with embedding $e_s$, its texture relevance score $R(s)$ i
 $$R(s) = \max_{p \in \text{Seeds}} \left( \frac{e_s \cdot e_p}{\|e_s\| \|e_p\|} \right)$$
 
 ### Empirical Threshold Calibration (`scripts/calibrate_threshold.py`)
-During Phase 1 testing on 48,000 candidate sentences:
-* At threshold $0.45$: Precision was only **~50%** (captured generic statements like *"the product looks nice and fits well"*).
+* At threshold $0.45$: Precision was only **~50%** (captured generic statements like *"looks nice and fits well"*).
 * At threshold $0.50$: Precision reached **~90%**, isolating strictly tactile, thermal, and weave-related sentences while maintaining high recall on actual defect reports.
 
 ---
 
-## 3. Negation & Contrastive Clause Parsing (`src/diagnosis/negation.py`)
+## 2. Negation & Contrastive Clause Parsing (`src/diagnosis/negation.py`)
 
-A naive keyword search for red-flag adjectives (e.g. `scratchy`, `plastic`, `rough`) produces massive false-positive rates due to negative and contrastive constructions:
-* *"It is **not scratchy at all**, very comfortable!"* $\to$ (Naive match = Defect; Correct = Praise)
-* *"I was afraid it would feel like **plastic**, but it's pure cotton."* $\to$ (Naive match = Defect; Correct = Praise)
-* *"Not soft, definitely **plasticky**."* $\to$ (Correct = Defect)
+A naive keyword search for red-flag adjectives (e.g. `scratchy`, `plastic`, `rough`) produces massive false-positive rates due to negative and contrastive constructions.
 
 ```mermaid
 flowchart TD
-    A[Sentence Containing Red-Flag Word] --> B[Token & Clause Splitter]
-    B --> C{Direct Negation Window? <br/> 'not', 'never', 'hardly' within 3 tokens}
-    C -- Yes --> D[Check Contrast Conjunctions <br/> 'but', 'however', 'although']
-    D -- Negation Unbroken --> E[SUPPRESS HIT <br/> Increment negated_suppressed counter]
-    D -- Contrast Inverts --> F[VALID HIT]
-    C -- No --> F
-    F --> G[Extract as Valid Texture Evidence]
+    A[Sentence with Red-Flag Adjective] --> B{Negation Cue Preceding Word?}
+    B -- Yes --> C{Contrasting Conjunction Breaks Negation?}
+    C -- No --> D[SUPPRESS HIT]
+    C -- Yes --> E[VALID EVIDENCE HIT]
+    B -- No --> E
 ```
 
-### Technical Implementation
-* **Negation Scope Window**: Analyzes a sliding window of $\le 3$ tokens preceding the target adjective for negative modifiers (`not`, `no`, `never`, `hardly`, `scarcely`, `barely`, `without`, `isn't`, `wasn't`, `doesn't`).
-* **Diminisher Handling**: Detects phrases like *"not at all scratchy"* or *"far from rough"*.
-* **Suppression Accounting**: Every suppressed sentence is recorded in `negated_suppressed` metadata, providing complete visibility into filter decisions.
+#### Negation Handling Details
+* **Negation Cue Detection**: Scans a window of $\le 3$ preceding tokens for negation cues (`not`, `no`, `never`, `hardly`, `barely`, `scarcely`, `without`, `isn't`, `wasn't`).
+* **Contrastive Scope Breaking**: Detects conjunctions like `but`, `however`, `although` (e.g., *"not soft, but definitely **scratchy**"* $\to$ keeps `scratchy` as a valid hit).
+* **Metric Tracking**: Records all pruned hits in `negated_suppressed` for dashboard auditability.
 
 ---
 
-## 4. Grounded Mismatch Diagnosis Engine (`src/diagnosis/diagnose.py`)
+## 3. Grounded Mismatch Diagnosis Engine (`src/diagnosis/diagnose.py`)
 
 Once valid texture complaints are harvested, the diagnosis engine cross-references them with the **Fabric Physics Ontology** ([`data/fabric_physics.json`](file:///d:/Downloads/projects/True-texture%20detector%20AI%20system/data/fabric_physics.json)).
 
-### Priority Determination Matrix
-
 ```mermaid
-graph TD
-    A[Aggregated Texture Complaints for Product] --> B{Failing Adjectives match <br/> Claimed Material Red Flags?}
+graph LR
+    A[Extracted Complaints] --> B{Ontology Match?}
     B -- No --> C[Priority: NONE]
-    B -- Yes --> D{Number of Independent <br/> Complaint Sentences}
-    D -- ">= 3 sentences OR Strong Substitution Signature" --> E[Priority: CRITICAL]
+    B -- Yes --> D{Evidence Volume}
+    D -- ">= 3 or Substitution" --> E[Priority: CRITICAL]
     D -- "2 sentences" --> F[Priority: HIGH]
     D -- "1 sentence" --> G[Priority: MEDIUM]
 ```
 
-### Substitution Signature Corroboration
-If a product claims **Cotton** or **Silk**, but reviews contain complaints like `plastic`, `slick`, `shiny`, `sweaty`, `clingy`, or `staticky`:
-1. The engine checks the `substitution_signature` in `fabric_physics.json`.
-2. It detects that these symptoms precisely match **Polyester** masquerading as natural fiber.
-3. It emits a structured `substitution_hypothesis`:
-   ```json
-   {
-     "claimed_fiber": "cotton",
-     "suspected_fiber": "polyester",
-     "confidence": 0.88,
-     "signature_matches": ["plastic", "sweaty", "slick"]
-   }
-   ```
-4. This hypothesis is recorded in `data/processed/diagnosis.jsonl` and directly informs the Returns Concierge when a customer initiates a return.
+#### Diagnostic Priority Rules
+* **Priority CRITICAL**: $\ge 3$ verified complaint sentences OR complaints matching a known synthetic substitution signature (e.g., Polyester masquerading as Silk).
+* **Priority HIGH**: 2 independent customer complaint sentences matching ontology red flags.
+* **Priority MEDIUM**: 1 verified customer complaint sentence matching ontology red flags.
+* **Priority NONE**: Complaints do not contradict the claimed material's physical properties.

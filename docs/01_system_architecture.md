@@ -5,41 +5,32 @@
 The **True-Texture Intelligence Platform** is architected as a modular, decoupled AI system designed to operate both in batch analytical mode (mined catalog insights) and low-latency real-time mode (interactive customer return concierge).
 
 ```mermaid
-flowchart TB
+flowchart TD
     subgraph Offline Batch Pipeline
-        RawData[(Amazon/Myntra Raw Data)] --> Ingest[Dataset Ingestion <br/> src/ingest/download_dataset.py]
-        Ingest --> Filter[Semantic Sentence Filter <br/> src/nlp/semantic_filter.py]
-        Filter --> Negation[Negation Pruning Engine <br/> src/diagnosis/negation.py]
-        Negation --> Diagnosis[Texture Diagnosis Engine <br/> src/diagnosis/diagnose.py]
-        Diagnosis --> EvidencePool[(Evidence DB <br/> data/processed/diagnosis.jsonl)]
-    end
-
-    subgraph Ground Truth Knowledge
-        Physics[(Fabric Physics JSON <br/> data/fabric_physics.json)] --> Ontology[Fabric Ontology API <br/> src/physics/fabric_ontology.py]
-        Priors[(Category Materials JSON <br/> data/category_materials.json)] --> CatMaterials[Category Materials API <br/> src/physics/category_materials.py]
+        RawData[(Catalog & Reviews)] --> NLP[NLP Mismatch Engine]
+        Physics[(Fabric Physics)] --> NLP
+        NLP --> EvidencePool[(Evidence Pool)]
     end
 
     subgraph Online Agentic Service
-        User([Customer / Return Portal]) <-->|Initiate Return / Answer| Concierge[Returns Concierge Engine <br/> src/concierge/graph.py]
-        Ontology --> Concierge
-        CatMaterials --> Concierge
+        Customer([Customer]) <--> Concierge[LangGraph Returns Concierge]
+        Physics --> Concierge
         EvidencePool --> Concierge
-        Concierge --> Store[Episodic Insights Store <br/> src/concierge/insights_store.py]
-        Store --> SQLite[(SQLite DB <br/> data/processed/insights.sqlite)]
+        Concierge --> SQLite[(Episodic SQLite Store)]
     end
 
-    subgraph Observability & Ops
-        Concierge -.-> Tracer[Trace & Metrics Handler <br/> src/llmops/tracer.py]
-        Tracer -.-> Langfuse[(Langfuse Platform / JSONL)]
-        Tracer --> Evals[LLMOps Eval & Gating <br/> src/llmops/evaluate.py]
-        Evals --> Releases[(Releases Registry <br/> data/processed/releases.json)]
-    end
-
-    subgraph Presentation Layer
-        SQLite --> Dashboard[Streamlit Seller Dashboard <br/> app.py]
+    subgraph Operations & Presentation
+        Concierge -.-> LLMOps[LLMOps & Telemetry]
+        LLMOps --> Releases[(Releases Registry)]
+        SQLite --> Dashboard[Streamlit Dashboard]
         EvidencePool --> Dashboard
     end
 ```
+
+#### Pipeline Highlights
+* **Offline Ingestion & NLP**: Ingests raw reviews, applies `MiniLM-L6-v2` semantic filtering (0.50 threshold), and performs negation-aware adjective extraction to produce `diagnosis.jsonl`.
+* **Online Returns Concierge**: Multi-turn LangGraph agent that diagnoses returns in $\le 3$ questions using grounded physics and past review evidence.
+* **Storage & Operations**: Persists session transcripts to `insights.sqlite`, streams telemetry to Langfuse, and feeds real-time metrics to the Streamlit UI.
 
 ---
 
@@ -48,73 +39,38 @@ flowchart TB
 The agentic return concierge utilizes a specialized cognitive memory architecture designed for predictability, zero-latency grounding, and high KV-cache efficiency.
 
 ```mermaid
-classDiagram
-    class SemanticMemory {
-        +fabric_physics.json
-        +category_materials.json
-        +FabricOntology
-        +normalize_to_ontology()
-        +expected_texture
-        +failing_adjectives
-        +substitution_signatures
-    }
-    class ProceduralMemory {
-        +skill.md
-        +MAX_QUESTIONS = 3
-        +_skill_policy()
-        +2x2 Response Matrix
-        +Remedy Decision Tree
-    }
-    class EpisodicMemory {
-        +insights.sqlite
-        +sessions table
-        +load_sessions()
-        +SQL Recency & Case Filtering
-        +Historical ASIN Evidence
-    }
-    class WorkingMemory {
-        +LangGraph MemorySaver
-        +ConciergeState
-        +messages history
-        +questions_asked counter
-        +transcript accumulator
-    }
-
-    SemanticMemory <.. ConciergeSession : Grounds Physical Facts
-    ProceduralMemory <.. ConciergeSession : Enforces Rules of Engagement
-    EpisodicMemory <.. ConciergeSession : Queries Prior Complaints & Stores Outcomes
-    WorkingMemory <.. ConciergeSession : Tracks Active Multi-Turn Thread
+graph TD
+    A[Returns Concierge Session] --> B[1. Semantic Memory <br/> Durable Facts]
+    A --> C[2. Procedural Memory <br/> How-to-Act Policy]
+    A --> D[3. Episodic Memory <br/> Case History]
+    A --> E[4. Working Memory <br/> Active Session]
 ```
 
-### 1. Semantic Memory (Durable Domain Knowledge)
-* **Storage**: [`data/fabric_physics.json`](file:///d:/Downloads/projects/True-texture%20detector%20AI%20system/data/fabric_physics.json) & [`data/category_materials.json`](file:///d:/Downloads/projects/True-texture%20detector%20AI%20system/data/category_materials.json).
-* **Role**: Provides authoritative, deterministic fabric physics. Separates **fiber** expectations (cotton, linen, silk) from **weave/construction** mechanics (corduroy, satin, velvet, fleece).
-* **Rationale**: RAG over a small fixed domain ontology introduces vector retrieval misses and adds 150–300ms of latency. Direct injection ensures 100% precision.
+#### Memory Tier Specifications
 
-### 2. Procedural Memory (*How-to-Act* Policy)
-* **Storage**: [`src/concierge/skill.md`](file:///d:/Downloads/projects/True-texture%20detector%20AI%20system/src/concierge/skill.md).
-* **Role**: Governs the interview strategy, maximum question budget, conversational tone, and the deterministic 2×2 Response Matrix (Material Defect vs. Weather Discomfort).
-* **Rationale**: Markdown-based policy isolation decouples prompt engineering from Python orchestration code, allowing non-engineering domain experts to refine return policies.
+1. **Semantic Memory (Durable Domain Knowledge)**
+   * **Storage**: [`data/fabric_physics.json`](file:///d:/Downloads/projects/True-texture%20detector%20AI%20system/data/fabric_physics.json) & [`data/category_materials.json`](file:///d:/Downloads/projects/True-texture%20detector%20AI%20system/data/category_materials.json).
+   * **Role**: Provides authoritative, deterministic fabric physics. Separates **fiber** expectations (cotton, linen, silk) from **weave/construction** mechanics (corduroy, satin, velvet, fleece).
+   * **Engineering Decision**: Direct injection into the prompt rather than RAG over a vector DB. Direct injection eliminates retrieval misses and removes 150–300ms of DB latency.
 
-### 3. Episodic Memory (Historical Case & Transcript Records)
-* **Storage**: SQLite database ([`data/processed/insights.sqlite`](file:///d:/Downloads/projects/True-texture%20detector%20AI%20system/data/processed/insights.sqlite)) via [`src/concierge/insights_store.py`](file:///d:/Downloads/projects/True-texture%20detector%20AI%20system/src/concierge/insights_store.py).
-* **Role**: Captures completed sessions, user transcripts, classified outcomes, and token costs. Enables SQL-speed aggregations and feeds prior product evidence into future sessions.
+2. **Procedural Memory (*How-to-Act* Policy)**
+   * **Storage**: [`src/concierge/skill.md`](file:///d:/Downloads/projects/True-texture%20detector%20AI%20system/src/concierge/skill.md).
+   * **Role**: Governs the interview strategy, maximum question budget (`MAX_QUESTIONS = 3`), conversational tone, and the deterministic 2×2 Response Matrix (Material Defect vs. Weather Discomfort).
+   * **Engineering Decision**: Markdown policy isolation decouples prompt engineering from Python orchestration code.
 
-### 4. Working / Short-Term Memory (Session State)
-* **Storage**: In-memory LangGraph checkpointer ([`MemorySaver`](file:///d:/Downloads/projects/True-texture%20detector%20AI%20system/src/concierge/graph.py#L26)).
-* **Role**: Maintains state across tool calls and user interactions within an active thread (`thread_id`).
+3. **Episodic Memory (Historical Case & Transcript Records)**
+   * **Storage**: SQLite database ([`data/processed/insights.sqlite`](file:///d:/Downloads/projects/True-texture%20detector%20AI%20system/data/processed/insights.sqlite)) via [`src/concierge/insights_store.py`](file:///d:/Downloads/projects/True-texture%20detector%20AI%20system/src/concierge/insights_store.py).
+   * **Role**: Captures completed sessions, user transcripts, classified outcomes, and token costs. Enables SQL-speed aggregations and feeds prior product evidence into future sessions.
+
+4. **Working / Short-Term Memory (Session State)**
+   * **Storage**: In-memory LangGraph checkpointer ([`MemorySaver`](file:///d:/Downloads/projects/True-texture%20detector%20AI%20system/src/concierge/graph.py#L26)).
+   * **Role**: Maintains state across tool calls and user interactions within an active thread (`thread_id`).
 
 ---
 
 ## Prefix Optimization & KV-Cache Strategy
 
 A critical design consideration in high-throughput customer support agents is **KV Cache reuse** on LLM inference servers (e.g., Anthropic Prompt Caching, OpenAI automatic caching, vLLM RadixAttention).
-
-### Problem Statement
-Because prompt caching performs exact token matching from token `0` forward, placing dynamic per-request metadata (such as product title or ASIN) at the beginning of the `SystemMessage` invalidates the cache across concurrent users returning different items.
-
-### Optimized Architecture
-To achieve optimal cache efficiency and strong prompt injection isolation:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -133,9 +89,9 @@ To achieve optimal cache efficiency and strong prompt injection isolation:
 └─────────────────────────────────────────────────────────────┘
 ```
 
-1. **Global Cache Hit on System Prompt**: The system prompt is 100% static, guaranteeing that concurrent requests across thousands of distinct products share the identical pre-warmed KV cache.
-2. **Multi-Turn Cache Hit within Session**: On Turns 2, 3, and 4, the entire prefix (System prompt + Initial Case Context + Turn 1 messages) is 100% cached; only the customer's delta response is processed.
-3. **Prompt Injection Defense**: Product titles and user-generated review texts are enclosed in structured XML tags within the user space rather than executing in the authoritative system instruction space.
+* **Global Cache Hit on System Prompt**: The system prompt is 100% static, guaranteeing that concurrent requests across thousands of distinct products share the identical pre-warmed KV cache.
+* **Multi-Turn Cache Hit within Session**: On Turns 2, 3, and 4, the entire prefix (System prompt + Initial Case Context + Turn 1 messages) is 100% cached; only the customer's delta response is processed.
+* **Prompt Injection Defense**: Product titles and user-generated review texts are enclosed in structured XML tags within the user space rather than executing in the authoritative system instruction space.
 
 ---
 
@@ -145,34 +101,29 @@ To achieve optimal cache efficiency and strong prompt injection isolation:
 sequenceDiagram
     autonumber
     actor Customer
-    participant App as Concierge UI / Frontend
-    participant Graph as LangGraph Engine (graph.py)
-    participant LLM as Foundation Model (Portkey)
-    participant Tracer as Langfuse / Local Tracer
-    participant DB as SQLite Insights Store
+    participant App as Concierge UI
+    participant Graph as LangGraph Engine
+    participant LLM as Foundation Model
+    participant DB as SQLite DB
 
-    Customer->>App: Clicks "Return Product" (ASIN: B001...)
-    App->>Graph: ConciergeSession.start()
-    Graph->>LLM: Invoke with Static System Prompt + Dynamic Case Context
-    LLM-->>Graph: ToolCall: ask_question(question, options)
-    Graph->>Graph: Interrupt Execution & Yield Question Event
-    Graph-->>App: Return question payload & UI options
-    App-->>Customer: Render Question 1 (e.g. "How does the fabric feel?")
-
-    Customer->>App: Selects "Feels slick and plasticky"
-    App->>Graph: ConciergeSession.answer("Feels slick and plasticky")
-    Graph->>LLM: Resume with ToolMessage(customer_answer)
-    
-    alt Needs Follow-Up (questions < 3)
-        LLM-->>Graph: ToolCall: ask_question("In what weather was it worn?", options)
-        Graph-->>Customer: Render Question 2
-        Customer->>Graph: Answers Question 2
-    end
-
-    LLM-->>Graph: ToolCall: submit_diagnosis(payload)
-    Graph->>Graph: enrich_diagnosis() with Ground Truth Facts
-    Graph->>DB: Save Session (Diagnosis, Transcripts, Cost, Case Class)
-    Graph->>Tracer: Emit Structured Trace Event
-    Graph-->>App: Return Final Grounded Diagnosis & Customer Message
-    App-->>Customer: Display empathetic customer closing message
+    Customer->>App: Initiate Return
+    App->>Graph: start()
+    Graph->>LLM: Invoke (Static System + Case Context)
+    LLM-->>Graph: ToolCall: ask_question
+    Graph->>Graph: Interrupt & Pause
+    Graph-->>App: Render Question & Options
+    Customer->>App: Submits Answer
+    App->>Graph: answer(text)
+    Graph->>LLM: Resume with ToolMessage
+    LLM-->>Graph: ToolCall: submit_diagnosis
+    Graph->>DB: Save Session & Transcripts
+    Graph-->>App: Return Diagnosis & Resolution
+    App-->>Customer: Render Closing Message
 ```
+
+#### Lifecycle Step Highlights
+1. **Initiation**: Customer clicks "Return" on a product.
+2. **Context Setup**: `ConciergeSession` loads static system prompt and context-engineered XML payload.
+3. **Execution & Interrupt**: LangGraph invokes the LLM, intercepts the `ask_question` tool call, and pauses via `interrupt()`.
+4. **Resumption**: Customer selects an answer; `Command(resume=...)` updates the thread state.
+5. **Finalization & Enrichment**: On `submit_diagnosis`, the engine grounds facts against the physics ontology and saves the final record to SQLite.

@@ -20,41 +20,26 @@ Online fashion ecommerce suffers from massive product return rates (**25% to 35%
 6. **Seller Intelligence Portal**: Streamlit-powered intelligence dashboard providing actionable, evidence-backed supply chain and listing remedies.
 
 ```mermaid
-graph TD
-    subgraph Data & NLP Pipeline
-        A[Raw Reviews & Product Catalog] --> B[Semantic Filter <br/> MiniLM-L6-v2]
-        B --> C[Negation & Clause Analyzer]
-        C --> D[Texture Mismatch Engine]
-    end
-
-    subgraph Grounded Physics & Priors
-        E[(Fabric Physics Ontology <br/> fabric_physics.json)] --> D
-        F[(Category Materials Prior <br/> category_materials.json)] --> G[Agent State Resolver]
-    end
-
-    subgraph Agentic Conversational Layer
-        D --> H[(Prior Evidence DB)]
-        G --> I[LangGraph StateGraph <br/> Returns Concierge]
-        H --> I
-        J[Customer Return Event] --> I
-        I <-->|Interrupt / Resume| K[Customer Multi-Turn Chat]
-        I --> L[Submit Grounded Diagnosis]
-    end
-
-    subgraph Storage & Intelligence
-        L --> M[(SQLite Episodic Store <br/> insights.sqlite)]
-        L --> N[Seller Action Router <br/> Audit / Quality / Fix]
-        M --> O[Streamlit Seller Dashboard]
-        N --> O
-    end
-
-    subgraph LLMOps & Continuous Eval
-        I -.-> P[Structured Trace Engine <br/> Langfuse / traces.jsonl]
-        P --> Q[LLMOps Suite <br/> Gate / Diagnose / Eval]
-        Q --> R[Versioned Releases <br/> releases.json]
-        R -.->|Promote Prompt/Config| I
-    end
+graph LR
+    A[Review & Catalog Data] --> B[NLP Mismatch Pipeline]
+    B --> C[Fabric Physics Ontology]
+    C --> D[LangGraph Returns Concierge]
+    D --> E[Episodic SQLite Store]
+    D --> F[Seller Action Router]
+    D -.-> G[LLMOps & Telemetry]
+    E --> H[Streamlit Seller Dashboard]
+    F --> H
 ```
+
+#### Core Subsystem Breakdown
+* **Review & Catalog Data**: Raw apparel metadata and unstructured customer reviews.
+* **NLP Mismatch Pipeline**: High-precision semantic filtering (`MiniLM-L6-v2`) and negation-aware sentence parsing.
+* **Fabric Physics Ontology**: Deterministic rules separating fiber chemistry from weave structure.
+* **LangGraph Returns Concierge**: Multi-turn conversational agent resolving return root causes in $\le 3$ questions.
+* **Episodic SQLite Store**: Persistent storage of return transcripts, diagnoses, and token costs.
+* **Seller Action Router**: Automated ticketing system routing issues to Supply Chain Audits, Quality Improvements, or Listing Fixes.
+* **LLMOps & Telemetry**: OpenTelemetry/Langfuse tracing, golden eval benchmarks, and regression gates.
+* **Streamlit Seller Dashboard**: Real-time KPI metrics, evidence drill-down, and transcript viewer.
 
 ---
 
@@ -64,7 +49,7 @@ graph TD
 | :--- | :--- |
 | **[01. System Architecture](01_system_architecture.md)** | Core system topology, LangGraph StateGraph lifecycle, 3-tier memory layers, KV-cache prefix optimization, and end-to-end data flow. |
 | **[02. Data & NLP Pipeline](02_data_pipeline_nlp.md)** | HuggingFace dataset ingestion, MiniLM semantic sentence filtering (calibrated 0.50 threshold), SBAR dependency-based negation pruning, and mismatch diagnosis. |
-| **[03. Conversational Agent & LangGraph](03_conversational_agent_langgraph.md)** | LangGraph workflow implementation, human-in-the-loop `interrupt` mechanics, tool calling protocols (`ask_question`, `submit_diagnosis`), and dynamic context engineering. |
+| **[03. Conversational Agent & LangGraph](03_conversational_agent_langgraph.md)** | LangGraph workflow implementation, human-in-the-loop `interrupt` mechanics, tool interfaces (`ask_question`, `submit_diagnosis`), and dynamic context engineering. |
 | **[04. Fabric Physics & Ontology Engine](04_physics_ontology_engine.md)** | Heuristic fabric ontology, orthogonal fiber vs. weave axes, category prior mapping, and the deterministic 2×2 diagnostic response matrix. |
 | **[05. LLMOps, Observability & Evals](05_llmops_observability_evals.md)** | End-to-end tracing, Portkey integration, Langfuse callbacks, multi-metric golden eval harness, diagnostic regression root-causing, and release gating. |
 | **[06. Seller Intelligence Dashboard](06_seller_intelligence_dashboard.md)** | Streamlit frontend architecture, real-time KPI metrics, evidence drill-down, and automated supply-chain remediation ticketing. |

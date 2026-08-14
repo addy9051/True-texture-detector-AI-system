@@ -51,43 +51,45 @@ LANGFUSE_HOST=https://cloud.langfuse.com
 The platform is partitioned into discrete, reproducible execution phases:
 
 ```mermaid
-flowchart TD
-    P1[Phase 1: Ingest & Semantic NLP <br/> scripts/run_phase1.py] --> P2[Phase 2: Diagnosis & Ontology <br/> scripts/run_phase2.py]
-    P2 --> P3[Phase 3: Visual CLIP Audit <br/> scripts/run_phase3.py]
-    P2 --> P4[Phase 4: Agentic Concierge <br/> scripts/run_concierge.py]
-    P4 --> P5[Phase 5: Seller Dashboard <br/> uv run streamlit run app.py]
-    P4 --> PEval[LLMOps: Eval & Gate <br/> scripts/run_llmops.py]
+flowchart LR
+    P1[Phase 1: Ingest & NLP] --> P2[Phase 2: Mismatch Diagnosis]
+    P2 --> P3[Phase 3: Visual Audit]
+    P2 --> P4[Phase 4: Agentic Concierge]
+    P4 --> P5[Phase 5: Seller Dashboard]
+    P4 -.-> PEval[LLMOps & Eval Harness]
 ```
 
-### Phase 1: Data Ingestion & Semantic Filtering
-Samples reviews from the raw apparel dataset, performs sentence segmentation, computes MiniLM embeddings, and applies calibrated 0.50 thresholding:
+#### Pipeline Phase Sequence
+* **Phase 1 (`run_phase1.py`)**: Data ingestion, sentence segmentation, MiniLM embedding, and semantic thresholding.
+* **Phase 2 (`run_phase2.py`)**: Negation-aware pruning and grounded fabric physics diagnosis.
+* **Phase 3 (`run_phase3.py`)**: Multimodal zero-shot CLIP visual audit of product imagery.
+* **Phase 4 (`run_concierge.py`)**: Autonomous LangGraph multi-turn conversational returns concierge.
+* **Phase 5 (`streamlit run app.py`)**: Real-time Streamlit returns intelligence dashboard.
+* **LLMOps (`run_llmops.py`)**: Multi-scenario evaluation benchmark and release gating.
+
+---
+
+### Execution Commands by Phase
+
+#### Phase 1: Ingest & Semantic Filtering
 ```bash
 uv run python scripts/run_phase1.py --sample-size 300
 ```
 *Output*: `data/processed/texture_sentences.jsonl`
 
----
-
-### Phase 2: Grounded Mismatch Diagnosis
-Runs negation-aware pruning and matches extracted customer complaints against the fabric physics ontology:
+#### Phase 2: Grounded Mismatch Diagnosis
 ```bash
 uv run python scripts/run_phase2.py
 ```
 *Output*: `data/processed/diagnosis.jsonl`
 
----
-
-### Phase 3: Visual Corroboration (Optional Multimodal Audit)
-Audits product catalog imagery against texture claims using zero-shot CLIP similarity:
+#### Phase 3: Visual Corroboration Audit
 ```bash
 uv run python scripts/run_phase3.py
 ```
 *Output*: `data/processed/visual_audit.jsonl`
 
----
-
-### Phase 4: Conversational Returns Concierge
-Executes the LangGraph conversational concierge across sample return scenarios:
+#### Phase 4: Conversational Returns Concierge
 ```bash
 # Run batch simulation using mock provider ($0 cost)
 uv run python scripts/run_concierge.py --provider mock --limit 10
@@ -97,10 +99,7 @@ uv run python scripts/run_concierge.py --provider portkey --model gpt-4o-mini --
 ```
 *Output*: `data/processed/insights.sqlite` and `data/processed/traces.jsonl`
 
----
-
-### Phase 5: Launch the Streamlit Seller Dashboard
-Starts the interactive seller returns intelligence dashboard:
+#### Phase 5: Launch the Streamlit Seller Dashboard
 ```bash
 uv run streamlit run app.py
 ```
@@ -111,7 +110,6 @@ Open your browser at `http://localhost:8501`.
 ## Evaluation, LLMOps & Testing CLI
 
 ### 1. Interactive Single-Session CLI Demo
-To interactively chat with the Returns Concierge in your terminal:
 ```bash
 uv run python scripts/demo.py --provider mock
 ```
@@ -122,13 +120,11 @@ uv run python scripts/test_live_concierge.py --provider groq --model llama-3.3-7
 ```
 
 ### 3. Run LLMOps Golden Benchmark & Release Gate
-Executes the 8-scenario evaluation suite, calculates pass rates, and records candidate releases:
 ```bash
 uv run python scripts/run_llmops.py --provider mock
 ```
 
 ### 4. Threshold Calibration Utility
-To recalibrate the semantic sentence filter threshold on new review domains:
 ```bash
 uv run python scripts/calibrate_threshold.py --sample 5000
 ```
