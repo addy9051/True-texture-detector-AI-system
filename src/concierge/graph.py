@@ -28,9 +28,11 @@ from langgraph.graph import END, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.types import Command, interrupt
 
+# pyrefly: ignore [missing-import]
 from src.concierge.concierge import (
     MAX_QUESTIONS,
     build_system_prompt,
+    build_case_context,
     classify_case,
     enrich_diagnosis,
     resolve_materials,
@@ -186,7 +188,8 @@ class ConciergeSession:
         self.ontology = ontology
         self.claimed_materials, self.weaves, _ = resolve_materials(
             product, ontology, category)
-        self._system = build_system_prompt(
+        self._system = build_system_prompt()
+        self._case_context = build_case_context(
             product, ontology, diagnosis_row, category)
 
         graph = _build_graph(
@@ -225,9 +228,7 @@ class ConciergeSession:
         initial_state: dict = {
             "messages": [
                 SystemMessage(content=self._system),
-                HumanMessage(content=(
-                    "The customer just clicked 'Return item'. "
-                    "Begin the interview.")),
+                HumanMessage(content=self._case_context),
             ],
             "questions_asked": 0,
             "transcript": [],
