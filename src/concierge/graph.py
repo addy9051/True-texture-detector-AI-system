@@ -61,7 +61,6 @@ ConciergeState.__annotations__ = {
 # ------------------------------------------------------------------ graph
 
 _BOTH_TOOLS = [ask_question, submit_diagnosis]
-_DIAGNOSIS_ONLY = [submit_diagnosis]
 
 
 def _build_graph(
@@ -75,7 +74,10 @@ def _build_graph(
     # ---- node: agent ----
     def agent(state: ConciergeState) -> dict:
         if state["questions_asked"] >= MAX_QUESTIONS:
-            model = llm.bind_tools(_DIAGNOSIS_ONLY, tool_choice="required")
+            # Keep _BOTH_TOOLS bound so the tool schema definitions in the
+            # prefix remain identical across all turns for KV cache hits,
+            # but force the model to invoke submit_diagnosis specifically.
+            model = llm.bind_tools(_BOTH_TOOLS, tool_choice="submit_diagnosis")
             # Inject a nudge so the model understands why it can only diagnose.
             extra = [HumanMessage(
                 content=("IMPORTANT: You have used all your questions. "

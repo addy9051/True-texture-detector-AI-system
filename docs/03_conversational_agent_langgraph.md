@@ -45,8 +45,8 @@ ConciergeState.__annotations__ = {
 ```
 
 ### Deterministic Tool Narrowing
-1. **Questions Remaining ($< 3$)**: Both `ask_question` and `submit_diagnosis` are available.
-2. **Budget Reached ($\ge 3$)**: Only `submit_diagnosis` is bound (`tool_choice="required"`), guaranteeing deterministic termination without infinite conversation loops.
+1. **Questions Remaining ($< 3$)**: Both `ask_question` and `submit_diagnosis` are available (`tool_choice="required"`).
+2. **Budget Reached ($\ge 3$)**: Both tools remain bound to preserve the prompt prefix schema for KV caching, but the model is forced to call `submit_diagnosis` via `tool_choice="submit_diagnosis"`.
 
 ---
 
