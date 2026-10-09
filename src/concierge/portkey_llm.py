@@ -5,9 +5,10 @@ gemini_client.py, provider.py) with a single unified gateway.
 
 Provider selection keeps the same env-var-driven priority as before::
 
-    LLM_PROVIDER = groq | gemini | bedrock | mock    (explicit override)
+    LLM_PROVIDER = modal | groq | gemini | bedrock | mock    (explicit override)
 
 Default when LLM_PROVIDER is unset, in order:
+    modal    if MODAL_LLM_URL or VLLM_BASE_URL is set
     groq     if GROQ_API_KEY or GROQ_MODEL_ID is set
     gemini   if GEMINI_API_KEY or GEMINI_MODEL_ID is set
     bedrock  otherwise
@@ -50,11 +51,13 @@ _env_or_registry = os.environ.get
 
 
 def provider_name() -> str:
-    """Return the active provider name using the same priority as the old
-    provider.py: explicit override → Groq → Gemini → Bedrock."""
+    """Return the active provider name using the priority:
+    explicit override → Modal → Groq → Gemini → Bedrock."""
     explicit = (os.environ.get("LLM_PROVIDER") or "").strip().lower()
     if explicit:
         return explicit
+    if os.environ.get("MODAL_LLM_URL") or os.environ.get("VLLM_BASE_URL"):
+        return "modal"
     for name, keys in _DETECTION_KEYS.items():
         if any(os.environ.get(k) for k in keys):
             return name
@@ -62,15 +65,39 @@ def provider_name() -> str:
 
 
 def make_llm(provider: str | None = None, *, callbacks: list | None = None) -> ChatOpenAI:
-    """Create a LangChain ChatOpenAI routed through Portkey's gateway.
+    """Create a LangChain ChatOpenAI routed to the active provider.
 
-    Returns a ``BaseChatModel`` for mock mode (no Portkey needed).
+    Supports:
+    - mock: offline deterministic mock
+    - modal / vllm: self-hosted serverless vLLM on Modal (direct OpenAI-compatible endpoint)
+    - groq / gemini / bedrock: routed through Portkey AI Gateway
     """
     name = provider or provider_name()
 
     if name == "mock":
         from src.concierge.mock_chat import MockChatModel
         return MockChatModel()
+
+    # Self-hosted Modal vLLM serverless endpoint (OpenAI compatible)
+    if name in ("modal", "vllm"):
+        modal_url = os.environ.get("MODAL_LLM_URL") or os.environ.get("VLLM_BASE_URL")
+        if not modal_url:
+            raise RuntimeError(
+                "MODAL_LLM_URL not set. Deploy scripts/serve_modal_vllm.py with `modal deploy` "
+                "and set MODAL_LLM_URL=https://<endpoint>/v1 in your .env")
+        base_url = modal_url.rstrip("/")
+        if not base_url.endswith("/v1"):
+            base_url += "/v1"
+        model_id = os.environ.get("MODAL_MODEL_ID") or "Qwen/Qwen2.5-7B-Instruct"
+        api_key = os.environ.get("MODAL_API_KEY") or "modal"
+        return ChatOpenAI(
+            api_key=api_key,
+            base_url=base_url,
+            model=model_id,
+            temperature=0.3,
+            max_tokens=MAX_RESPONSE_TOKENS,
+            callbacks=callbacks,
+        )
 
     portkey_key = os.environ.get("PORTKEY_API_KEY")
     if not portkey_key:
@@ -80,7 +107,7 @@ def make_llm(provider: str | None = None, *, callbacks: list | None = None) -> C
 
     if name not in _PROVIDERS:
         raise RuntimeError(
-            f"Unknown LLM_PROVIDER {name!r} — use groq | gemini | bedrock | mock")
+            f"Unknown LLM_PROVIDER {name!r} — use modal | groq | gemini | bedrock | mock")
 
     model_env, default_model = _PROVIDERS[name]
 
