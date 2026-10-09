@@ -50,7 +50,7 @@ vllm_image = (
         "requests",
     )
     .env({
-        "HF_HUB_ENABLE_HF_TRANSFER": "1",
+        "HF_XET_HIGH_PERFORMANCE": "1",
         "VLLM_LOG_STATS_INTERVAL": "5",
     })
 )
@@ -78,9 +78,8 @@ def download_weights(model_id: str = MODEL_ID):
         "/root/.cache/huggingface": hf_cache_vol,
         "/root/.cache/vllm": vllm_cache_vol,
     },
-    container_idle_timeout=300,    # Scale to zero after 5 minutes of idle time
+    scaledown_window=300,    # Scale to zero after 5 minutes of idle time
     timeout=600,
-    allow_concurrent_inputs=32,
 )
 @modal.web_server(port=VLLM_PORT, startup_timeout=300)
 def serve():
